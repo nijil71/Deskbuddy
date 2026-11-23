@@ -15,6 +15,7 @@ import { icon } from "../shared/icons";
 import { ActivityLog, standup } from "../services/activity";
 import { phase, sinceStart, shiftLen, mealGuess, mealWord, greetWord, type Shift } from "../shared/shift";
 import { patchSettings, today, type Settings } from "../shared/settings";
+import { Playtime } from "./playtime";
 
 export interface Presence { idleMs: number; locked: boolean; fullscreen: boolean; inCall: boolean; keepalive: boolean; inHours: boolean; }
 export interface SysStats { cpu: number; mem: number; hasBattery: boolean; battery: number; charging: boolean; }
@@ -78,9 +79,12 @@ export class Brain {
   private lookTimer = 0;
   private ticks = 0;
   private stopped = false;
+  /** touch, cursor games, typing along */
+  play: Playtime;
 
   constructor(private b: Buddy, private ui: Overlay, public s: Settings, private mem: Remember, private voice: Voice) {
     this.focus = new Focus(s.focus);
+    this.play = new Playtime(b, this);
     const now = Date.now();
     for (const k of Object.keys(s.reminders)) this.remindAt[k] = now + (s.reminders as any)[k].every * 60_000;
     this.focus.onPhase = (n, p) => this.onFocusPhase(n, p);
@@ -92,6 +96,10 @@ export class Brain {
     b.mood.e = mem.m.mood.e;
     b.mood.shift = this.shift;
   }
+
+  get isAway() { return this.away; }
+  /** play is a non-verbal reaction: off in quiet mode / calls, like other reactions */
+  get mayPlay() { return this.voice.mayReact("play"); }
 
   /** Your working hours: the buddy's whole day (coffee, meal, wrap-up, comic) is relative to these. */
   get shift(): Shift { return { start: this.s.keep.startMin, end: this.s.keep.endMin }; }
@@ -156,6 +164,8 @@ export class Brain {
     if (this.away) return ["sleep", { sitting: true, cap: late }];
     if (this.focus.working) return ["focus"];
     if (this.presence.inCall || mode === "quiet") return ["quiet"];
+    // you're typing: he types along on his little laptop (silently)
+    if (this.play.typingNow) return ["typeAlong"];
 
     this.boredom = Math.min(1, this.boredom + 0.12);
     const chill = mode === "chill";
@@ -244,7 +254,7 @@ export class Brain {
   // ------------------------------------------------------------------ you, interacting
 
   onPet() { this.b.mood.nudge(0.12, 0.03); this.mem.interacted(); this.activity.count("pets"); }
-  onPoke() { this.b.mood.nudge(0.03); this.mem.interacted(); }
+  onPoke(by = 0.03) { this.b.mood.nudge(by); this.mem.interacted(); }
   onWave() { this.b.mood.nudge(0.05); this.mem.interacted(); }
   onRoughLanding() { this.b.mood.nudge(-0.03); this.mem.interacted(); }
 
@@ -553,6 +563,7 @@ export class Brain {
       if (this.voice.mode === "quiet") return;
       if (lunch) this.b.play("wave", { text: pick([`How was ${mealWord(this.mem.m.lunchMin ?? mealGuess(this.shift)).toLowerCase()}${name}? 🍜`, `Welcome back${name}! Good break?`]) });
       else if (mins >= 30) this.b.play("celebrate", { text: `Welcome back${name}! You were away ${mins >= 90 ? Math.round(mins / 60) + "h" : mins + " min"}.` });
+      else if (Math.random() < 0.5) this.play.highFive(pick([`You're back${name}! High five? ✋`, `Hey${name}! Up top ✋`]));
       else this.b.play("wave", { text: pick([`Oh! You're back${name} 👋`, `Welcome back${name}!`, "Hey there!"]) });
     });
   }
@@ -569,7 +580,9 @@ export class Brain {
       if (prev === "work") this.activity.count("focus");
       this.b.mood.nudge(0.1);
       this.ui.setRing(true, 0, "", "break");
-      this.b.play("breakTime", { text: next === "long" ? "Long break! Go for a walk 🚶" : "Break time! Stretch with me 🙆" }, { force: true });
+      const brk = () => this.b.play("breakTime", { text: next === "long" ? "Long break! Go for a walk 🚶" : "Break time! Stretch with me 🙆" }, { force: true });
+      // a finished round earns a high five first
+      if (prev === "work") this.play.highFive("Round done! High five ✋").then(brk); else brk();
     } else if (next === "idle" && (prev === "short" || prev === "long")) {
       chime("up");
       this.ui.setRing(false);

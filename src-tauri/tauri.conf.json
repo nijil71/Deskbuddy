@@ -25,6 +25,7 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "focus": false,
+        "dragDropEnabled": false,
         "visible": false,
         "maximizable": false,
         "minimizable": false

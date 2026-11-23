@@ -1,3 +1,4 @@
+mod input;
 mod win;
 
 use serde::{Deserialize, Serialize};
@@ -63,6 +64,7 @@ pub struct Shared {
     clip: Mutex<VecDeque<String>>,
     clip_skip_seq: AtomicU32,
     visible: AtomicBool,
+    typing: AtomicBool, // count keystrokes for the type-along (setting)
     tray_keep: Mutex<Option<CheckMenuItem<Wry>>>,
     tray_dnd: Mutex<Option<CheckMenuItem<Wry>>>,
     tray_hide: Mutex<Option<MenuItem<Wry>>>,
@@ -183,6 +185,11 @@ fn set_dnd(st: St, on: bool) {
     if let Some(i) = st.tray_dnd.lock().unwrap().as_ref() {
         let _ = i.set_checked(on);
     }
+}
+
+#[tauri::command]
+fn set_typing(st: St, on: bool) {
+    st.typing.store(on, Ordering::Relaxed);
 }
 
 #[tauri::command]
@@ -547,6 +554,7 @@ pub fn run() {
         clip: Mutex::new(VecDeque::new()),
         clip_skip_seq: AtomicU32::new(0),
         visible: AtomicBool::new(true),
+        typing: AtomicBool::new(false),
         tray_keep: Mutex::new(None),
         tray_dnd: Mutex::new(None),
         tray_hide: Mutex::new(None),
@@ -577,6 +585,7 @@ pub fn run() {
             open_panel,
             set_buddy_visible,
             set_dnd,
+            set_typing,
             quit
         ])
         .setup(move |app| {
@@ -611,6 +620,8 @@ pub fn run() {
             sysmon_worker(handle.clone());
             clipboard_worker(handle.clone(), shared.clone());
             awareness_worker(handle.clone(), shared.clone());
+            input::typing_worker(handle.clone(), shared.clone());
+            input::hook_drop_paths(&handle);
             Ok(())
         })
         .run(tauri::generate_context!())

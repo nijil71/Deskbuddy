@@ -86,6 +86,17 @@ export class Buddy {
   talkUntil = 0;
   talk(text: string) { this.talkUntil = this.time + Math.min(4, 0.5 + text.replace(/<[^>]*>/g, "").length * 0.05); }
 
+  /** your keystrokes, as taps: each one makes a hand come down (alternating) */
+  keyAt = -1e9;              // buddy time of the last keystroke batch
+  tapL = 0; tapR = 0;        // 1 = finger just hit the key, decays to 0
+  private keyQ = 0;
+  private tapGap = 0;
+  private tapSide = false;
+  onKeys(n: number) { this.keyAt = this.time; this.keyQ = Math.min(6, this.keyQ + n); this.wake(); }
+  flow = false;              // you've been typing steadily for a while (set by the brain)
+  /** you typed within the last `s` seconds */
+  typedWithin(s: number) { return this.time - this.keyAt < s; }
+
   constructor(host: HTMLElement) {
     this.rig = new Rig(host);
     this.fx = new Fx(this.rig.fx);
@@ -209,6 +220,16 @@ export class Buddy {
     this.faceCur = dir ? clamp(this.faceCur + dir * dt * 9, -1, 1) : this.faceCur;
     if (Math.abs(this.facing - this.faceCur) < 0.01) this.faceCur = this.facing;
     p.face = this.faceCur;
+
+    // keystroke taps: spaced out a little so a burst reads as rhythm, not a blur
+    const decay = Math.exp(-dt * 16);
+    this.tapL *= decay; this.tapR *= decay;
+    this.tapGap -= dt;
+    if (this.keyQ > 0 && this.tapGap <= 0) {
+      this.keyQ--; this.tapGap = 0.07;
+      this.tapSide = !this.tapSide;
+      if (this.tapSide) this.tapL = 1; else this.tapR = 1;
+    }
 
     const c = this.cur;
     if (c) {

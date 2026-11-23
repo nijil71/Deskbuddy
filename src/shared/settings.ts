@@ -41,6 +41,8 @@ export interface Settings {
   news: NewsCfg;
   /** private on-device diary → standup notes + daily comic */
   activity: { on: boolean; ignore: string[] };
+  /** interactions: cursor games (chase, reach, high fives) and typing along (keystroke counts only) */
+  play: { cursor: boolean; typing: boolean };
   launcher: LaunchItem[];
   meetings: Meeting[];
   autostart: boolean;
@@ -75,6 +77,7 @@ export const DEFAULTS: Settings = {
   weather: { city: "", lat: null, lon: null, unit: "c" },
   news: { on: true, feed: "top", minScore: 400, keywords: [] },
   activity: { on: true, ignore: [] },
+  play: { cursor: true, typing: true },
   launcher: [
     { name: "Microsoft Teams", target: "msteams:" },
     { name: "Notepad", target: "notepad.exe" },

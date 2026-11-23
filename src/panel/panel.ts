@@ -557,6 +557,13 @@ async function settings() {
     </section>
 
     <section class="card">
+      <h3>${icon("hand")} Play with me</h3>
+      <div class="setting"><span class="grow">Cursor games<small>Wiggle the cursor near him and he chases it; rest it above his head and he jumps for it; high fives when you come back.</small></span><label class="switch"><input type="checkbox" id="pcur" ${S.play.cursor ? "checked" : ""}><i></i></label></div>
+      <div class="setting"><span class="grow">Type along with me<small>He types on his little laptop in rhythm with you. Only counts keystrokes, never which keys, and nothing is stored.</small></span><label class="switch"><input type="checkbox" id="ptyp" ${S.play.typing ? "checked" : ""}><i></i></label></div>
+      <p class="muted">Also try: click his hair, glasses, nose, tummy or feet · drop a file, folder, link or text on him.</p>
+    </section>
+
+    <section class="card">
       <h3>${icon("cloud")} Weather</h3>
       <div class="row gap"><input id="wc" class="grow" placeholder="Your city" value="${esc(S.weather.city)}"><select id="wu"><option value="c" ${S.weather.unit === "c" ? "selected" : ""}>°C</option><option value="f" ${S.weather.unit === "f" ? "selected" : ""}>°F</option></select><button class="btn" id="wf">Set</button></div>
       <p class="muted">Uses Open-Meteo (free, no account). Only the city name / coordinates are sent.</p>
@@ -591,6 +598,8 @@ async function settings() {
   chk("#ro", (v) => (S.roam = v));
   chk("#hf", (v) => (S.hideFullscreen = v));
   chk("#dnd", (v) => (S.dnd = v));
+  chk("#pcur", (v) => (S.play.cursor = v));
+  chk("#ptyp", (v) => (S.play.typing = v));
   sel("#wu", (v) => (S.weather.unit = v as "c" | "f"));
   $("#wf").onclick = async () => {
     const c = $<HTMLInputElement>("#wc").value.trim();
@@ -619,6 +628,7 @@ async function settings() {
 function labTab() {
   const groups: [string, [string, string, string, unknown?][]][] = [
     ["Moves", [["walk", "walk", "Walk"], ["__throw", "throw", "Throw"], ["__climb", "mountain", "Climb window"], ["peek", "eye", "Peek"], ["turn", "turn", "Turn"], ["lookAround", "search", "Look around"], ["dizzy", "star", "Dizzy"]]],
+    ["Play", [["boing", "sparkles", "Hair boing"], ["fixGlasses", "glasses", "Glasses"], ["boop", "heart", "Boop"], ["tickle", "faceHappy", "Tickle"], ["hop", "arrowUp", "Hop"], ["grumpy", "faceMeh", "Grumpy", { text: "Hey! Enough poking" }], ["pounce", "pointer", "Pounce", { x: 0 }], ["pant", "faceSmile", "Pant"], ["eager", "hand", "Eager"], ["typeAlong", "laptop", "Type along"]]],
     ["Feelings", [["wave", "hand", "Wave", { text: "Hello!" }], ["celebrate", "party", "Celebrate", { text: "Woohoo!", hat: true }], ["pet", "heart", "Pet"], ["poke", "pointer", "Poke"], ["yawn", "moon", "Yawn"], ["stretch", "stretch", "Stretch"], ["sleep", "zzz", "Sleep", { sitting: true }], ["wakeUp", "clock", "Wake"], ["shh", "mute", "Shh"], ["think", "bulb", "Think"]]],
     ["Hobbies", [["read", "book", "Read"], ["juggle", "juggle", "Juggle"], ["music", "headphones", "Music"], ["doodle", "pencil", "Doodle"], ["yoyo", "yoyo", "Yo-yo"], ["coffee", "coffee", "Coffee"], ["magic", "wand", "Magic"], ["news", "news", "Newspaper"], ["__news", "news", "HN headlines"], ["holdPhone", "phone", "Phone", { text: "Scrolling…" }]]],
     ["Work", [["__nudge", "dot", "Keep-alive nudge"], ["focus", "laptop", "Focus"], ["breakTime", "leaf", "Break"], ["drink", "droplet", "Water"], ["eyeBreak", "glasses", "Eye break", { secs: 6 }], ["posture", "chair", "Posture"], ["holdSign", "sign", "Sign", { text: "Standup!" }], ["holdNote", "note", "Note", { text: "Buy milk" }]]],

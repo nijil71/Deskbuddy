@@ -7,6 +7,8 @@ import { Buddy } from "./buddy/buddy";
 import { registerCore } from "./buddy/anims/core";
 import { registerLife } from "./buddy/anims/life";
 import { registerWork } from "./buddy/anims/work";
+import { registerPlay } from "./buddy/anims/play";
+import { setupDrop } from "./ui/drop";
 import { Brain, type Presence, type SysStats, type Fg, type Media } from "./buddy/brain";
 import { Voice } from "./buddy/voice";
 import { Remember } from "./buddy/memory";
@@ -22,6 +24,7 @@ const buddy = new Buddy(stage);
 registerCore(buddy);
 registerLife(buddy);
 registerWork(buddy);
+registerPlay(buddy);
 const ui = new Overlay(stage, buddy);
 // actions speak through here: reactions may be silenced, and carry their suggestion key
 buddy.say = (text, opts = {}) => {
@@ -54,7 +57,7 @@ function pushKeepalive(s: Settings) {
 
 // ------------------------------------------------------------------ pointer interactions
 
-let down: { x: number; y: number; t: number; offX: number; offY: number; sx: number; sy: number } | null = null;
+let down: { x: number; y: number; t: number; offX: number; offY: number; sx: number; sy: number; lx: number; ly: number } | null = null;
 let dragSamples: { x: number; y: number; t: number }[] = [];
 let clickTimer = 0;
 let petDist = 0, petLast = { x: 0, y: 0 }, petDecay = 0;
@@ -65,7 +68,9 @@ svg.addEventListener("pointerdown", async (e) => {
   if (e.button !== 0) return;
   ui.closeMenu();
   svg.setPointerCapture(e.pointerId);
-  const d = { x: 0, y: 0, t: performance.now(), offX: NaN, offY: NaN, sx: e.screenX, sy: e.screenY };
+  // where on his body you pressed (rig px) → which part reacts
+  const r = svg.getBoundingClientRect(), sc = r.width / W;
+  const d = { x: 0, y: 0, t: performance.now(), offX: NaN, offY: NaN, sx: e.screenX, sy: e.screenY, lx: (e.clientX - r.left) / sc, ly: (e.clientY - r.top) / sc };
   down = d;
   const [cx, cy] = await invoke<[number, number]>("get_cursor");
   Object.assign(d, { x: cx, y: cy, offX: buddy.world.fx - cx, offY: buddy.world.fy - cy });
@@ -132,8 +137,7 @@ svg.addEventListener("pointerup", (e) => {
       clickTimer = 0;
       if (buddy.actionName === "sleep") { buddy.play("wakeUp", undefined, { force: true }); return; }
       if (ui.bubbleVisible) { dismissBubble(); return; }
-      buddy.play("poke", undefined, { force: buddy.priority < 4 });
-      brain?.onPoke();
+      brain?.play.touch(wasDown.lx, wasDown.ly); // hair boings, glasses get pushed up, belly giggles…
     }, 260);
   }
 });
@@ -257,7 +261,10 @@ async function boot() {
   brain.setSettings(settings);
   pushKeepalive(settings);
 
-  await listen<[number, number]>("cursor", (e) => buddy.setCursor(e.payload[0], e.payload[1]));
+  await listen<[number, number]>("cursor", (e) => { buddy.setCursor(e.payload[0], e.payload[1]); brain.play.onCursor(e.payload[0], e.payload[1]); });
+  await listen<number>("keys", (e) => brain.play.onKeys(e.payload));
+  await setupDrop(buddy, ui, () => brain.onPoke(0.04));
+  invoke("set_typing", { on: settings.play.typing }).catch(() => {});
   await listen<Presence>("presence", (e) => brain.onPresence(e.payload));
   await listen("nudge-request", () => brain.onNudgeRequest());
   await listen("nudge-done", () => brain.onNudgeDone());
@@ -309,6 +316,7 @@ async function boot() {
     applyLook(s);
     brain.setSettings(s);
     if (keepChanged) pushKeepalive(s);
+    invoke("set_typing", { on: s.play.typing }).catch(() => {});
     invoke("set_dnd", { on: s.dnd });
   });
 

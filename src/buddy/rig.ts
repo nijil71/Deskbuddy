@@ -312,6 +312,18 @@ export class Rig {
     return { x: cx - 88, y: top, w: 176, h: GROUND + p.y - top + (p.y > 10 ? 30 : 4) };
   }
 
+  /** Being touched: an impulse into the secondary-motion springs (hair boing, head jiggle,
+   *  glasses jump). k ≈ 1 is a normal tap. */
+  impulse(part: "hair" | "head" | "glasses", k = 1) {
+    const r = () => Math.random() - 0.5;
+    if (part === "hair") {
+      this.hairY.kick(-70 * k); this.hairX.kick(r() * 90 * k);
+      this.tuftSpr.forEach((s, i) => s.kick(((i - 1) * 140 + r() * 200) * k));
+      this.jelly.kick(2.5 * k);
+    } else if (part === "head") this.jelly.kick(5 * k);
+    else this.glassSpr.kick(-45 * k);
+  }
+
   /** Screen-space (window CSS px) position of the head centre, for eye tracking. */
   headCenter(p: Pose) {
     return { x: CX + p.x, y: HIP_Y + p.y + NECK + FACE };

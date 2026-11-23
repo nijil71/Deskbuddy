@@ -17,6 +17,7 @@ const P: Record<string, string> = {
   rocket: '<path d="M12 15l-3-3c1.5-5 4.5-8 10-9-1 5.5-4 8.5-7 12z"/><path d="M9 12l-4 .5 3-4h3M12 15l-.5 4 4-3v-3M5.5 16.5C4 18 4 20 4 20s2 0 3.5-1.5"/><circle cx="15" cy="9" r="1.2"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   dot: '<circle cx="12" cy="12" r="5" fill="currentColor"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   ring: '<circle cx="12" cy="12" r="5"/>',
   briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
   sparkles: '<path d="M10 3l1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"/>',
@@ -113,6 +114,7 @@ const EMOJI: Record<string, string> = {
   "🥵": "thermo", "📦": "box", "🌧": "rain", "❄": "snow", "☀": "sun", "⛈": "storm", "💪": "muscle", "😤": "faceMeh",
   "😅": "faceSmile", "🔁": "repeat", "🎵": "music", "🎬": "film", "👍": "thumbsUp", "🐱": "cat", "✨": "sparkles",
   "🔌": "plug", "✏": "pencil", "😴": "faceSleep", "💤": "zzz", "🙂": "faceSmile", "📰": "news", "🔥": "zap",
+  "✋": "hand", "📁": "folder", "📄": "paper", "🔗": "link", "🖼": "camera", "🚀": "rocket",
 };
 const EMOJI_RE = /\s?(\p{Extended_Pictographic}|✓)️?(‍\p{Extended_Pictographic}️?)*/gu;
 

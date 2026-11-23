@@ -33,6 +33,15 @@ export const HAND_PROPS: Record<string, Prop> = {
   paper: { upright: true, svg: `
     <path d="M-12 -24 h20 l6 6 v24 h-26z" ${P} ${S} stroke-width="2.6"/>
     <path d="M-7 -14 h14 M-7 -8 h14 M-7 -2 h9" ${S} stroke-width="1.5"/>` },
+  folder: { upright: true, svg: `<g transform="translate(0,-14)">
+    <path d="M-20 -16 h13 l4 5 h23 v25 h-40z" fill="#f4c542" ${S} stroke-width="2.6"/>
+    <path d="M-20 -6 h40" ${S} stroke-width="1.6"/></g>` },
+  link: { upright: true, svg: `<g transform="translate(0,-16)">
+    <rect x="-22" y="-12" width="44" height="22" rx="11" ${P} ${S} stroke-width="2.6"/>
+    <path d="M-7 -1 h-4 a5 5 0 0 0 0 10 h4 M7 -1 h4 a5 5 0 0 1 0 10 h-4 M-5 4 h10" fill="none" ${S} stroke-width="2" transform="translate(0,-4)"/></g>` },
+  box: { upright: true, svg: `<g transform="translate(0,-14)">
+    <path d="M-16 -12 h32 v26 h-32z" fill="#d9a066" ${S} stroke-width="2.6"/>
+    <path d="M-16 -4 h32 M-4 -12 v8 h8 v-8" ${S} stroke-width="1.6"/></g>` },
   camera: { upright: true, svg: `<g transform="translate(-4,-22)">
     <rect x="-16" y="-20" width="32" height="22" rx="5" ${I}/>
     <rect x="-8" y="-25" width="12" height="6" rx="2" ${I}/>

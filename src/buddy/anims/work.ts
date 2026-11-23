@@ -4,6 +4,7 @@ import type { Buddy, Action } from "../buddy";
 import { bump, clamp, easeInOut, easeOutBack, rand, seg } from "../pose";
 import { armsUp, gait, handToMouth, holdFront, holdSign, sit, typing } from "./util";
 import { CX, GROUND } from "../rig";
+import { typeTaps } from "./play";
 
 const every = (t: number, dt: number, period: number, offset = 0) =>
   Math.floor((t - offset) / period) !== Math.floor((t - offset - dt) / period) && t > offset;
@@ -82,7 +83,7 @@ export function registerWork(b: Buddy) {
     update(b, t, dt, p) {
       sit(p, t, 0.1);
       p.hat = "headphones";
-      typing(p, t, 1);
+      typeTaps(p, b, t); // in time with your real keystrokes
       p.mouth = t % 12 < 1 ? "tongue" : "flat";
       if (t % 14 > 12.6) { p.aR1 = -140; p.aR2 = 40; p.pupilY = 0; p.lookY = 0; } // sip/think pause
       if (every(t, dt, 3.2)) b.fx.emit("note", CX + rand(-70, 70), 140, { vy: -30, life: 1.6, wob: 25, s: 0.7 });
