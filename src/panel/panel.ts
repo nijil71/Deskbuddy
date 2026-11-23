@@ -10,6 +10,8 @@ import {
 } from "../shared/settings";
 import { geocode } from "../services/weather";
 import { fetchNews, matches, hnThread, ago, type Feed, type Story } from "../services/news";
+import { loadActivity, standup, topThings, fmtDur, fmtMin } from "../services/activity";
+import { comicSvg, comicPng } from "../comic/comic";
 import { icon } from "../shared/icons";
 import type { FocusState } from "../services/focus";
 
@@ -24,7 +26,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") win.close(
 document.addEventListener("contextmenu", (e) => { if (!(e.target as HTMLElement).closest("input,textarea")) e.preventDefault(); });
 
 const TABS = [
-  ["focus", "headphones", "Focus"], ["reminders", "clock", "Reminders"], ["notes", "note", "Notes"], ["news", "news", "News"],
+  ["focus", "headphones", "Focus"], ["reminders", "clock", "Reminders"], ["notes", "note", "Notes"], ["news", "news", "News"], ["day", "comic", "My day"],
   ["clipboard", "clipboard", "Clipboard"], ["launcher", "rocket", "Launcher"], ["settings", "gear", "Settings"], ["lab", "film", "Lab"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -49,7 +51,7 @@ function toast(msg: string) {
 }
 
 function renderTabs() {
-  tabsEl.innerHTML = TABS.map(([id, ic, label]) =>
+  tabsEl.innerHTML = TABS.filter(([id]) => id !== "lab" || current === "lab").map(([id, ic, label]) =>
     `<button data-tab="${id}" class="${id === current ? "on" : ""}" title="${label}"><span>${icon(ic)}</span><em>${label}</em></button>`).join("");
   tabsEl.querySelectorAll<HTMLButtonElement>("button").forEach((b) => (b.onclick = () => show(b.dataset.tab as Tab)));
 }
@@ -59,7 +61,7 @@ function show(tab: Tab) {
   cleanup.forEach((f) => f()); cleanup = [];
   renderTabs();
   view.classList.remove("enter"); void view.offsetWidth; view.classList.add("enter");
-  ({ focus, reminders, notes, news, clipboard, launcher, settings, lab: labTab } as Record<Tab, () => void>)[current]();
+  ({ focus, reminders, notes, news, day, clipboard, launcher, settings, lab: labTab } as Record<Tab, () => void>)[current]();
 }
 
 // ------------------------------------------------------------------ Focus
@@ -240,6 +242,124 @@ async function clipboard() {
   draw();
 }
 
+// ------------------------------------------------------------------ My day: comic + standup + diary
+
+let dayIdx = 0; // 0 = most recent day
+
+async function day() {
+  // ask the buddy window to write out the latest numbers first (it owns the diary)
+  await new Promise<void>((res) => {
+    let done = false;
+    listen("activity-flushed", () => { if (!done) { done = true; res(); } }).then((u) => cleanup.push(u));
+    emit("activity-flush");
+    setTimeout(() => { if (!done) { done = true; res(); } }, 600);
+  });
+  const all = await loadActivity();
+  const days = Object.keys(all).sort().reverse();
+  const A = S.activity;
+  if (!days.length) {
+    view.innerHTML = `
+      <section class="card empty-day">
+        <h3>${icon("comic")} Your day, as a comic</h3>
+        <p class="muted">${A.on ? "Nothing logged yet. Work for a bit and your buddy will start sketching. At the end of the day he draws it as a comic, and each morning he writes your standup notes." : "The activity diary is off, so there's nothing to draw yet."}</p>
+      </section>` + privacyCard(A);
+    bindPrivacy();
+    return;
+  }
+  dayIdx = Math.min(dayIdx, days.length - 1);
+  const d = all[days[dayIdx]];
+  const isToday = d.day === today();
+  const label = isToday ? "Today" : dayIdx === 0 || days[dayIdx - 1] === today() ? "Yesterday" : new Date(d.day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const things = topThings(d, 7, 3 * 60);
+  const max = Math.max(1, ...things.map(([, t]) => t.s));
+  view.innerHTML = `
+    <div class="day-nav">
+      <button class="mini" id="dprev" ${dayIdx >= days.length - 1 ? "disabled" : ""} title="Earlier">${icon("chevL")}</button>
+      <b>${label}</b>
+      <button class="mini" id="dnext" ${dayIdx === 0 ? "disabled" : ""} title="Later">${icon("chevR")}</button>
+    </div>
+    <div class="comic" id="comic"><div class="muted">Drawing…</div></div>
+    <div class="row-btns">
+      <button class="btn primary" id="csave">${icon("download")} Save image</button>
+      <button class="btn" id="copen">${icon("folder")} Open folder</button>
+    </div>
+    <section class="card">
+      <h3>${icon("clock")} At a glance</h3>
+      <div class="stats four">
+        <div><b>${fmtDur(d.active)}</b><small>at the desk</small></div>
+        <div><b>${d.first >= 0 ? fmtMin(d.first) : "–"}</b><small>first seen</small></div>
+        <div><b>${d.calls}${d.callSec ? ` <em>${fmtDur(d.callSec)}</em>` : ""}</b><small>calls</small></div>
+        <div><b>${d.focus} / ${d.breaks}</b><small>focus / breaks</small></div>
+      </div>
+      ${things.length ? `<div class="bars">${things.map(([n, t]) => `
+        <div class="bar"><span class="grow">${esc(n)} <small>${esc(t.app)}</small></span><i style="--w:${Math.round((t.s / max) * 100)}%"></i><b>${fmtDur(t.s)}</b></div>`).join("")}</div>`
+        : `<p class="muted">No named projects, documents or sites yet.</p>`}
+    </section>
+    <section class="card">
+      <h3>${icon("note")} Standup notes</h3>
+      <textarea id="sup" rows="8" spellcheck="false">${esc(standup(d, isToday ? "Today so far" : label))}</textarea>
+      <div class="row-btns"><button class="btn primary" id="scopy">${icon("copy")} Copy</button></div>
+    </section>
+    ${privacyCard(A, d.day)}`;
+
+  const svg = comicSvg(d, { name: S.userName, isToday, shift: { start: S.keep.startMin, end: S.keep.endMin } });
+  $("#comic").innerHTML = svg;
+  $("#dprev").onclick = () => { dayIdx++; day(); };
+  $("#dnext").onclick = () => { dayIdx--; day(); };
+  $("#csave").onclick = async () => {
+    try {
+      const bytes = await comicPng(svg);
+      const path = await invoke<string>("save_png", { name: `deskbud-${d.day}`, bytes: Array.from(bytes) });
+      toast("Saved to Pictures › Deskbud");
+      lastSaved = path;
+    } catch (e) { console.error(e); toast("Couldn't save the image"); }
+  };
+  $("#copen").onclick = () => invoke("shell_open", { target: lastSaved ? lastSaved.replace(/[\\/][^\\/]+$/, "") : "shell:My Pictures" });
+  $("#scopy").onclick = () => invoke("clip_set", { text: $<HTMLTextAreaElement>("#sup").value }).then(() => toast("Copied — paste it in your standup"));
+  bindPrivacy(d.day);
+}
+let lastSaved = "";
+
+function privacyCard(A: Settings["activity"], dayKey?: string) {
+  return `
+    <section class="card">
+      <h3>${icon("eyeOff")} Privacy</h3>
+      <div class="setting"><span class="grow">Activity diary<small>Stays on this PC. Keeps only project, document and site names plus time spent — never window contents. Private/incognito windows are skipped.</small></span><label class="switch"><input type="checkbox" id="aon" ${A.on ? "checked" : ""}><i></i></label></div>
+      <div class="setting"><span class="grow">Never log windows containing<small>Comma separated, e.g. a client name or "salary"</small></span></div>
+      <input id="aig" class="full" placeholder="optional" value="${esc(A.ignore.join(", "))}">
+      <div class="row-btns">
+        ${dayKey ? `<button class="btn" id="aforget">${icon("trash")} Forget this day</button>` : ""}
+        <button class="btn danger" id="aclear">${icon("trash")} Clear everything</button>
+      </div>
+    </section>`;
+}
+
+function bindPrivacy(dayKey?: string) {
+  $<HTMLInputElement>("#aon").onchange = (e) => { S.activity.on = (e.target as HTMLInputElement).checked; save(); toast(S.activity.on ? "Diary on" : "Diary paused"); };
+  $<HTMLInputElement>("#aig").onchange = (e) => {
+    S.activity.ignore = (e.target as HTMLInputElement).value.split(",").map((k) => k.trim()).filter(Boolean).slice(0, 30);
+    save(); toast("Saved");
+  };
+  const forget = async (k: string | null) => {
+    await new Promise<void>((res) => {
+      let done = false;
+      listen("activity-flushed", () => { if (!done) { done = true; res(); } }).then((u) => cleanup.push(u));
+      emit("activity-forget", k);
+      setTimeout(() => { if (!done) { done = true; res(); } }, 800);
+    });
+    toast(k ? "Forgotten" : "Diary cleared");
+    dayIdx = 0; day();
+  };
+  const f = document.getElementById("aforget");
+  if (f && dayKey) f.onclick = () => forget(dayKey);
+  const c = $("#aclear");
+  c.onclick = () => {
+    if (c.dataset.sure) return forget(null);
+    c.dataset.sure = "1"; c.innerHTML = `${icon("trash")} Really clear all?`;
+    setTimeout(() => { delete c.dataset.sure; c.innerHTML = `${icon("trash")} Clear everything`; }, 3000);
+  };
+}
+
 // ------------------------------------------------------------------ News (Hacker News)
 
 function news() {
@@ -398,6 +518,8 @@ async function settings() {
         <div><b>${Math.max(1, mem.daysTogether)}</b><small>days together</small></div>
         <div><b>${lunch}</b><small>your usual lunch</small></div>
       </div>
+      <div class="setting"><span class="grow">My work hours<small>Your buddy's whole day follows these: coffee at the start, meal break mid-shift, wrap-up, comic and standup notes. Keep-alive uses them too.</small></span>
+        <span class="row gap"><input type="time" id="ks" value="${tm(K.startMin)}"> – <input type="time" id="kn" value="${tm(K.endMin)}"></span></div>
       <div class="setting"><span class="grow">Your name<small>Used in greetings. Stays on this PC.</small></span><input id="un" placeholder="optional" value="${esc(S.userName)}" style="width:150px"></div>
       <div class="setting"><span class="grow">Birthday<small>Expect a party</small></span><input type="date" id="bd" value="${bday}"></div>
       <div class="setting"><span class="grow">Mode</span>
@@ -412,8 +534,7 @@ async function settings() {
       <div class="setting"><span class="grow">Nudge after being idle for</span>
         <select id="kt">${[60, 120, 180, 210, 240].map((s) => `<option value="${s}" ${K.thresholdS === s ? "selected" : ""}>${s < 120 ? s + " s" : s / 60 + " min"}</option>`).join("")}</select></div>
       <div class="setting"><span class="grow">Only during work hours</span><label class="switch"><input type="checkbox" id="kw" ${K.workHoursOnly ? "checked" : ""}><i></i></label></div>
-      <div class="setting sub ${K.workHoursOnly ? "" : "dim"}"><span class="grow row gap">
-        <input type="time" id="ks" value="${tm(K.startMin)}"> to <input type="time" id="kn" value="${tm(K.endMin)}"></span>
+      <div class="setting sub ${K.workHoursOnly ? "" : "dim"}"><span class="grow muted">${tm(K.startMin)}–${tm(K.endMin)} (set above)</span>
         <span class="days">${days.map((d, i) => `<button class="day ${K.days[i] ? "on" : ""}" data-d="${i}">${d}</button>`).join("")}</span></div>
       <div class="setting"><span class="grow">Pause while I'm in a call<small>Detected when any app is using your microphone.</small></span><label class="switch"><input type="checkbox" id="kc" ${K.pauseInCall ? "checked" : ""}><i></i></label></div>
     </section>
@@ -444,9 +565,10 @@ async function settings() {
     <section class="card">
       <h3>${icon("monitor")} App</h3>
       <div class="setting"><span class="grow">Start with Windows</span><label class="switch"><input type="checkbox" id="as" ${auto ? "checked" : ""}><i></i></label></div>
-      <div class="row gap"><button class="btn" id="summon">Bring buddy here</button><span class="grow"></span><button class="btn danger" id="quit">Quit Deskbud</button></div>
+      <div class="row gap"><button class="btn" id="summon">Bring buddy here</button><button class="btn" id="openlab">${icon("film")} Animation lab</button><span class="grow"></span><button class="btn danger" id="quit">Quit Deskbud</button></div>
     </section>`;
 
+  $("#openlab").onclick = () => show("lab");
   $<HTMLInputElement>("#un").onchange = (e) => { S.userName = (e.target as HTMLInputElement).value.trim().slice(0, 30); save(); toast("Nice to meet you!"); };
   $<HTMLInputElement>("#bd").onchange = (e) => { const v = (e.target as HTMLInputElement).value; S.birthday = v ? v.slice(5) : ""; save(); };
   $$(".segb").forEach((b) => (b.onclick = () => { S.mode = b.dataset.mode as Settings["mode"]; S.shhUntil = 0; $$(".segb").forEach((x) => x.classList.toggle("on", x === b)); save(); }));

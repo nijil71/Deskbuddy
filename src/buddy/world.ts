@@ -28,6 +28,9 @@ export class World {
   get scale() { return (window.devicePixelRatio || 1) * this.size; }
   onLand?: (impact: number, surface: Surface) => void;
   onFall?: () => void;
+  /** Floor moved under our feet (auto-hide taskbar slid in/out). Return true if handled with an animation. */
+  onFloorShift?: (from: number, to: number) => boolean;
+  taskbars: Rect[] = [];
   private lastWin = { x: NaN, y: NaN };
   private platforms: WinInfo[] = [];
   private windowPoll = 0;
@@ -44,6 +47,7 @@ export class World {
   async refreshMonitors() {
     try {
       this.monitors = await invoke<Monitor[]>("get_monitors");
+      this.taskbars = await invoke<Rect[]>("get_taskbars");
     } catch { /* keep previous */ }
   }
 
@@ -60,8 +64,15 @@ export class World {
   }
 
   floorY(x = this.fx) {
-    const w = this.monitorAt(x).work;
-    return w.y + w.h;
+    const m = this.monitorAt(x);
+    let f = m.work.y + m.work.h;
+    // An auto-hide taskbar isn't part of the work area; while it's slid up, stand on it.
+    const bottom = m.bounds.y + m.bounds.h;
+    for (const t of this.taskbars) {
+      const atBottom = t.y + t.h >= bottom - 2 && t.y > m.bounds.y + m.bounds.h / 2;
+      if (atBottom && x >= t.x && x <= t.x + t.w && t.y < bottom - 8) f = Math.min(f, t.y);
+    }
+    return f;
   }
 
   /** Horizontal walking range on the current surface (feet x, screen px). */
@@ -165,7 +176,10 @@ export class World {
   async follow(dt: number) {
     if (this.surface.kind === "floor") {
       const fy = this.floorY();
-      if (Math.abs(fy - this.fy) > 1) this.fy = fy; // taskbar moved / monitor changed
+      if (Math.abs(fy - this.fy) > 1) {
+        // taskbar slid in/out → hop up / drop down; otherwise (monitor change, busy) just snap
+        if (!(Math.abs(fy - this.fy) > 12 && this.onFloorShift?.(this.fy, fy))) this.fy = fy;
+      }
       return;
     }
     if (this.surface.kind !== "window") return;

@@ -1,7 +1,7 @@
 // Buddy window entry: builds the character, wires Rust events and mouse interactions.
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Buddy } from "./buddy/buddy";
 import { registerCore } from "./buddy/anims/core";
@@ -12,6 +12,7 @@ import { Voice } from "./buddy/voice";
 import { Remember } from "./buddy/memory";
 import { Overlay } from "./ui/overlay";
 import { W, H, CX, GROUND } from "./buddy/rig";
+import { greetWord } from "./shared/shift";
 import { loadSettings, onSettings, patchSettings, SKINS, type Settings } from "./shared/settings";
 
 const win = getCurrentWindow();
@@ -153,8 +154,7 @@ ui.bubble.addEventListener("click", (e) => {
 });
 
 function greeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "Good morning! 👋" : h < 18 ? "Hey there! 👋" : "Good evening! 👋";
+  return `${greetWord()}! 👋`;
 }
 
 function openMenu() {
@@ -172,7 +172,7 @@ function openMenu() {
       : { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
     { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
     { label: "Note", icon: "note", fn: panel("notes") },
-    { label: "Clipboard", icon: "clipboard", fn: panel("clipboard") },
+    { label: "My day", icon: "comic", fn: panel("day") },
     { label: "Launcher", icon: "rocket", fn: panel("launcher") },
     {
       label: "Screenshot", icon: "camera",
@@ -248,6 +248,11 @@ async function boot() {
   const gap = mem.startSession();
   voice = new Voice(ui, settings, mem.m, mem.save);
   brain = new Brain(buddy, ui, settings, mem, voice);
+  brain.activity.on = settings.activity.on; brain.activity.ignore = settings.activity.ignore;
+  await brain.activity.load();
+  // the panel asks for fresh numbers / to forget a day; the diary lives here, so we do the writing
+  await listen("activity-flush", () => brain.activity.flush().then(() => emit("activity-flushed")));
+  await listen<string | null>("activity-forget", (e) => { brain.activity.forget(e.payload ?? undefined); brain.activity.flush().then(() => emit("activity-flushed")); });
   brain.setSettings(settings);
   pushKeepalive(settings);
 
@@ -259,7 +264,20 @@ async function boot() {
   await listen<string>("clipboard", (e) => brain.onClipboard(e.payload));
   await listen<Fg>("fg", (e) => brain.onForeground(e.payload));
   await listen<Media | null>("media", (e) => brain.onMedia(e.payload));
-  await listen<boolean>("visibility", (e) => buddy.setHidden(!e.payload));
+  await listen<boolean>("visibility", (e) => { brain.userVisible = e.payload; buddy.setHidden(!e.payload); });
+  await listen<{ x: number; y: number; w: number; h: number }[]>("taskbars", (e) => { buddy.world.taskbars = e.payload; });
+  // auto-hide taskbar slides up → hop onto it; slides away → drop back down
+  let lastHop = -1e9;
+  buddy.world.onFloorShift = (from, to) => {
+    const busy = ["jumpTo", "airborne", "land", "dragged"].includes(buddy.actionName);
+    if (busy) return true; // already mid-air: the landing will find the new floor
+    if (buddy.priority >= 2 || buddy.actionName === "sleep" || buddy.actionName === "sit" || buddy.dragging) return false;
+    if (performance.now() - lastHop < 15_000) return false; // don't make a show of it every time
+    lastHop = performance.now();
+    if (to < from) buddy.play("jumpTo", { x: buddy.world.fx, y: to }, { force: true });
+    else { buddy.world.launch(0, 0); buddy.play("airborne", undefined, { force: true }); }
+    return true;
+  };
   await listen<boolean>("keepalive-toggled", (e) => {
     patchSettings((s) => { s.keep.enabled = e.payload; });
     ui.say(e.payload ? "Keep-alive on. I'll keep you green 🟢" : "Keep-alive off. Teams may show Away.", { ms: 2600 });

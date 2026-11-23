@@ -204,3 +204,22 @@ nav { gap: 2px; padding: 0 8px 8px; } nav button { padding: 6px 0; }
 .story.hot { background: color-mix(in srgb, #ff6600 9%, transparent); border-radius: 10px; }
 .story .tag { color: #ff6600; }
 input.full { width: 100%; box-sizing: border-box; margin-top: 4px; }
+
+/* ---- my day ---- */
+.day-nav { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 2px 0 8px; font-size: 14px; }
+.day-nav .mini:disabled { opacity: .3; cursor: default; }
+.comic { border-radius: 12px; overflow: hidden; border: 2px solid var(--line); box-shadow: 3px 3px 0 rgba(0,0,0,.12); background: #f4efe6; }
+.comic svg { display: block; width: 100%; height: auto; }
+.comic .muted { padding: 40px; text-align: center; }
+.row-btns { display: flex; gap: 8px; justify-content: center; margin: 10px 0 4px; flex-wrap: wrap; }
+.stats.four { grid-template-columns: repeat(4, 1fr); }
+.stats.four b { font-size: 13px; }
+.stats b em { font-style: normal; font-weight: 600; font-size: 10.5px; color: var(--muted); }
+.bars { display: grid; gap: 7px; margin-top: 4px; }
+.bar { display: grid; grid-template-columns: 1fr 90px 52px; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
+.bar small { color: var(--muted); font-weight: 600; font-size: 10.5px; }
+.bar .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar i { height: 8px; border-radius: 6px; background: var(--soft); position: relative; overflow: hidden; }
+.bar i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--accent); border-radius: 6px; }
+.bar b { text-align: right; font-size: 11.5px; }
+#sup { width: 100%; box-sizing: border-box; font: 12px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; resize: vertical; }

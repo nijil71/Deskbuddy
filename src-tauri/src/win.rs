@@ -6,7 +6,9 @@ use std::ffi::c_void;
 use windows::core::{BOOL, PCWSTR};
 use windows::Win32::Foundation::{FILETIME, HANDLE, HGLOBAL, HWND, LPARAM, POINT, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS};
-use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO};
+use windows::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HDC, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardSequenceNumber, OpenClipboard, SetClipboardData,
 };
@@ -24,11 +26,13 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::Shell::{
+    FOLDERID_Pictures, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
     ShellExecuteW, SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetCursorPos, GetForegroundWindow, GetWindowLongW, GetWindowTextLengthW, GetWindowTextW,
-    GetWindowThreadProcessId, IsIconic, IsWindowVisible, GWL_EXSTYLE, SW_SHOWNORMAL, WS_EX_TOOLWINDOW,
+    EnumWindows, FindWindowExW, FindWindowW, GetCursorPos, GetForegroundWindow, GetWindowLongW, GetWindowRect,
+    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, GWL_EXSTYLE,
+    GWL_STYLE, SW_SHOWNORMAL, WS_CAPTION, WS_EX_TOOLWINDOW,
 };
 
 // ---------------------------------------------------------------- input / presence
@@ -60,13 +64,81 @@ pub fn is_locked() -> bool {
 }
 
 /// Fullscreen game/video or presentation mode in the foreground.
+/// A real fullscreen app (video, game, slideshow, F11 browser) — not just a maximised window.
+/// With an auto-hiding taskbar Windows reports QUNS_BUSY for every maximised window, so we
+/// double-check the foreground window: no title bar, not maximised, and covering its monitor.
 pub fn is_fullscreen_busy() -> bool {
     unsafe {
-        match SHQueryUserNotificationState() {
-            Ok(s) => s == QUNS_BUSY || s == QUNS_RUNNING_D3D_FULL_SCREEN || s == QUNS_PRESENTATION_MODE,
-            Err(_) => false,
+        let s = match SHQueryUserNotificationState() {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        if s == QUNS_RUNNING_D3D_FULL_SCREEN || s == QUNS_PRESENTATION_MODE {
+            return true;
+        }
+        if s != QUNS_BUSY {
+            return false;
+        }
+        let fg = GetForegroundWindow();
+        if fg.0.is_null() || IsZoomed(fg).as_bool() {
+            return false;
+        }
+        let style = GetWindowLongW(fg, GWL_STYLE) as u32;
+        if style & WS_CAPTION.0 == WS_CAPTION.0 {
+            return false;
+        }
+        let mut r = RECT::default();
+        if GetWindowRect(fg, &mut r).is_err() {
+            return false;
+        }
+        let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if !GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &mut mi).as_bool() {
+            return false;
+        }
+        let b = mi.rcMonitor;
+        r.left <= b.left && r.top <= b.top && r.right >= b.right && r.bottom >= b.bottom
+    }
+}
+
+/// The user's real Pictures folder (follows OneDrive / folder redirection).
+pub fn pictures_dir() -> std::path::PathBuf {
+    unsafe {
+        if let Ok(p) = SHGetKnownFolderPath(&FOLDERID_Pictures, KF_FLAG_DEFAULT, None) {
+            let s = p.to_string().unwrap_or_default();
+            windows::Win32::System::Com::CoTaskMemFree(Some(p.0 as *const core::ffi::c_void));
+            if !s.is_empty() {
+                return s.into();
+            }
         }
     }
+    std::env::var("USERPROFILE").map(|h| std::path::Path::new(&h).join("Pictures")).unwrap_or_else(|_| ".".into())
+}
+
+/// Where the taskbars are right now (they slide in/out when set to auto-hide).
+pub fn taskbars() -> Vec<Rect> {
+    let mut v = Vec::new();
+    unsafe {
+        let wide = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        let (main, sec) = (wide("Shell_TrayWnd"), wide("Shell_SecondaryTrayWnd"));
+        let mut push = |h: HWND| {
+            let mut r = RECT::default();
+            if !h.0.is_null() && IsWindowVisible(h).as_bool() && GetWindowRect(h, &mut r).is_ok() {
+                v.push(r.into());
+            }
+        };
+        if let Ok(h) = FindWindowW(PCWSTR(main.as_ptr()), PCWSTR::null()) {
+            push(h);
+        }
+        let mut prev: Option<HWND> = None;
+        while let Ok(h) = FindWindowExW(None, prev, PCWSTR(sec.as_ptr()), PCWSTR::null()) {
+            if h.0.is_null() {
+                break;
+            }
+            push(h);
+            prev = Some(h);
+        }
+    }
+    v
 }
 
 fn mouse(dx: i32, dy: i32) -> INPUT {

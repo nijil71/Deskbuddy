@@ -12,6 +12,8 @@ import { Focus, chime, fmt } from "../services/focus";
 import { fetchWeather, weatherText, type Weather } from "../services/weather";
 import { fetchNews, pickStory, matches, hnThread, ago, type Story } from "../services/news";
 import { icon } from "../shared/icons";
+import { ActivityLog, standup } from "../services/activity";
+import { phase, sinceStart, shiftLen, mealGuess, mealWord, greetWord, type Shift } from "../shared/shift";
 import { patchSettings, today, type Settings } from "../shared/settings";
 
 export interface Presence { idleMs: number; locked: boolean; fullscreen: boolean; inCall: boolean; keepalive: boolean; inHours: boolean; }
@@ -68,7 +70,9 @@ export class Brain {
   private newsAt = Date.now() - 25 * 60_000; // first look ~5 min after start
   private newsList: Story[] = [];
   private newsIdx = 0;
+  activity = new ActivityLog();
   private hiddenByFullscreen = false;
+  private fsStreak = 0;
   private covered = false;
   private song = "";
   private lookTimer = 0;
@@ -86,12 +90,18 @@ export class Brain {
     };
     b.mood.v = mem.m.mood.v;
     b.mood.e = mem.m.mood.e;
+    b.mood.shift = this.shift;
   }
+
+  /** Your working hours: the buddy's whole day (coffee, meal, wrap-up, comic) is relative to these. */
+  get shift(): Shift { return { start: this.s.keep.startMin, end: this.s.keep.endMin }; }
 
   setSettings(s: Settings) {
     const wasQuiet = this.voice.mode === "quiet";
     this.s = s;
     this.voice.s = s;
+    this.b.mood.shift = this.shift;
+    this.activity.on = s.activity.on; this.activity.ignore = s.activity.ignore;
     this.focus.cfg = s.focus;
     // leaving quiet mode: let the idle loop pick something livelier straight away
     if (wasQuiet && this.voice.mode !== "quiet" && this.b.actionName === "quiet") this.b.stop();
@@ -135,8 +145,8 @@ export class Brain {
 
   private choose(): [string, any?] {
     const b = this.b, w = b.world;
-    const h = hour();
-    const late = h >= 23 || h < 5;
+    const ph = phase(this.shift);
+    const late = ph === "over" || ph === "night";
     const onWin = w.surface.kind === "window";
     const mode = this.voice.mode;
     const { v, e } = b.mood;
@@ -175,9 +185,9 @@ export class Brain {
       // mimic your work: a little laptop session while you code / write
       [cat === "code" || cat === "office" || cat === "terminal" ? 1.4 : 0, () => ["focus", { dur: rand(12, 25) }]],
       [0.5, () => ["think", { text: glum ? "*sigh*" : pick(["Hmm…", "What was I doing?", "🤔", "Big thoughts…"]) }]],
-      [h > 14 || late ? 1.2 - e : 0.15, () => ["yawn"]],
+      [ph === "mid" || ph === "wrap" || late ? 1.2 - e : 0.15, () => ["yawn"]],
       [0.5, () => ["stretch"]],
-      [h >= 7 && h < 11 ? 0.9 : 0.25, () => ["coffee"]],
+      [ph === "start" ? 0.9 : 0.25, () => ["coffee"]],
       [roam && chill && !onWin ? 0.4 : 0, () => ["peek"]],
       // climbing windows is "chill" behaviour; in work mode he stays on the taskbar
       [roam && chill ? (onWin ? 0.7 : 0.9) : onWin ? 1.5 : 0, () => (onWin ? ["__hopDown"] : ["__climb"])],
@@ -233,7 +243,7 @@ export class Brain {
 
   // ------------------------------------------------------------------ you, interacting
 
-  onPet() { this.b.mood.nudge(0.12, 0.03); this.mem.interacted(); }
+  onPet() { this.b.mood.nudge(0.12, 0.03); this.mem.interacted(); this.activity.count("pets"); }
   onPoke() { this.b.mood.nudge(0.03); this.mem.interacted(); }
   onWave() { this.b.mood.nudge(0.05); this.mem.interacted(); }
   onRoughLanding() { this.b.mood.nudge(-0.03); this.mem.interacted(); }
@@ -261,6 +271,7 @@ export class Brain {
     this.presence = p;
     this.voice.inCall = p.inCall;
     this.voice.idleMs = p.idleMs;
+    this.activity.presence(p.idleMs, p.inCall, p.locked);
     const now = Date.now();
     const nudgedRecently = now - this.lastNudge < 9000;
     if (p.idleMs < 6000 && !nudgedRecently && !p.locked) {
@@ -273,16 +284,19 @@ export class Brain {
       if (this.b.priority < 1) this.b.stop();
     }
 
-    if (this.s.hideFullscreen && p.fullscreen && !this.hiddenByFullscreen) {
+    // fullscreen must hold for two checks (~10 s) before he ducks away; he comes back at once
+    this.fsStreak = p.fullscreen ? this.fsStreak + 1 : 0;
+    if (this.s.hideFullscreen && this.fsStreak >= 2 && !this.hiddenByFullscreen) {
       this.hiddenByFullscreen = true;
-      this.b.play("hideDuck", undefined, { force: true }).then(() => this.setWindowHidden(true));
-    } else if (this.hiddenByFullscreen && !p.fullscreen) {
+      this.b.play("hideDuck", undefined, { force: true }).then(() => this.syncWindow());
+    } else if (this.hiddenByFullscreen && (!p.fullscreen || !this.s.hideFullscreen)) {
       this.hiddenByFullscreen = false;
-      this.setWindowHidden(false);
-      this.b.play("popUp", undefined, { force: true });
+      void this.syncWindow().then(() => this.b.play("popUp", undefined, { force: true }));
     }
 
     if (p.locked !== prev.locked) this.b.setHidden(p.locked || this.hiddenByFullscreen);
+    // self-heal: never sit visible-but-frozen (e.g. after a hide/show raced)
+    else if (!this.hiddenByFullscreen && !p.locked && this.b.hidden && this.userVisible) void this.syncWindow();
 
     if (p.inCall && !prev.inCall && this.voice.mode !== "quiet" && this.cooldown("shh", 10 * 60_000)) this.b.play("shh");
     if (!p.inCall && prev.inCall && this.b.actionName === "quiet") this.b.stop();
@@ -294,6 +308,7 @@ export class Brain {
 
   onNudgeRequest() {
     this.lastNudge = Date.now();
+    this.activity.count("nudges");
     if (this.b.hidden) { invoke("do_nudge"); return; }
     this.ui.setBadge("active");
     this.b.play("nudge", undefined, { force: this.b.priority < 6 }).then(() => this.ui.setBadge("on"));
@@ -306,6 +321,7 @@ export class Brain {
     const switched = !this.fg || this.fg.id !== f.id;
     this.fg = f;
     const cat = categorize(f.exe, f.title);
+    this.activity.foreground(f.exe, f.title, cat);
     const catChanged = cat !== this.category;
     this.category = cat;
     const b = this.b, w = b.world;
@@ -341,6 +357,7 @@ export class Brain {
     if (m.title === this.song) return;
     this.song = m.title;
     const plays = this.mem.playedSong(m.title);
+    this.activity.song(m.title);
     if (!was && this.b.priority < 1 && this.voice.mayReact("music")) this.b.stop(); // start bopping
     if (plays >= 4 && this.mem.once(`repeat:${m.title}`)) {
       this.voice.auto("repeat", `"${m.title}" again? That's ${plays} times today 🔁`);
@@ -376,6 +393,7 @@ export class Brain {
     if (this.ticks % 3 === 0) {
       this.mem.m.mood = { v: this.b.mood.v, e: this.b.mood.e };
       this.mem.touch();
+      void this.activity.flush();
     }
 
     // meetings always get through (T-5, T-1, T-0)
@@ -445,16 +463,29 @@ export class Brain {
     }
 
     // time-of-day moments, once a day each (budgeted)
-    const lunchMin = this.mem.m.lunchMin ?? 12 * 60 + 30;
+    // all relative to *your* shift (e.g. 14:00–23:00), not the wall clock
+    const sh = this.shift, ph = phase(sh), since = sinceStart(sh), L = shiftLen(sh) / 60;
+    const lunchMin = this.mem.m.lunchMin ?? mealGuess(sh);
     const mins = d.getHours() * 60 + d.getMinutes();
-    if (h >= 5 && h < 11 && this.mem.once("morning")) { if (this.voice.allow("morning")) this.morning(); return; }
+    const meal = mealWord(lunchMin);
+    if (ph === "start" && this.mem.once("morning")) { if (this.voice.allow("morning")) this.morning(); return; }
     if (mins >= lunchMin - 5 && mins < lunchMin + 45 && this.mem.once("lunch")) {
-      if (this.voice.allow("lunch")) this.b.play("holdSign", { text: "Lunch? 🍜", dur: 5, say: this.mem.m.lunchMin != null ? "Your usual lunch time!" : "Don't skip lunch!" });
+      if (this.voice.allow("lunch")) this.b.play("holdSign", { text: `${meal}? 🍜`, dur: 5, say: this.mem.m.lunchMin != null ? `Your usual ${meal.toLowerCase()} time!` : `Don't skip your ${meal.toLowerCase()}!` });
       return;
     }
-    if (d.getDay() === 5 && h >= 15.5 && h < 18 && this.mem.once("friday")) { this.voice.auto("friday", "Almost weekend! 🎉"); return; }
-    if (h >= 18 && h < 19.5 && this.mem.once("evening")) { this.voice.auto("evening", "Wrapping up soon? 🌇"); return; }
-    if ((h >= 23 || h < 3) && this.mem.once("late")) { this.voice.auto("late", "It's really late… bed soon? 🌙"); return; }
+    // standup notes from your last working day, early in your shift
+    if ((ph === "start" || ph === "early") && this.s.activity.on && this.activity.previous() && this.mem.once("standup")) {
+      if (this.voice.allow("standup")) this.offerStandup();
+      return;
+    }
+    // end of a real day's work: he draws you a comic of it
+    if ((ph === "wrap" || ph === "over") && this.s.activity.on && this.activity.day.active >= 2 * 3600 && this.mem.once("comic")) {
+      if (this.voice.allow("comic")) this.offerComic();
+      return;
+    }
+    if (d.getDay() === 5 && ph === "late" && this.mem.once("friday")) { this.voice.auto("friday", "Almost weekend! 🎉"); return; }
+    if (ph === "wrap" && this.mem.once("evening")) { this.voice.auto("evening", "Wrapping up soon? 🌇"); return; }
+    if (since >= L + 1 && since < L + 6 && this.mem.once("late")) { this.voice.auto("late", "Your shift ended a while ago… time to rest? 🌙"); return; }
 
     // Hacker News: every 30 min, maybe one big story (or one about your interests)
     if (this.s.news.on && now - this.newsAt > 30 * 60_000) { this.newsAt = now; void this.checkNews(); return; }
@@ -462,7 +493,7 @@ export class Brain {
     // chatter (frequency from settings; budget from mode)
     const every = { quiet: Infinity, normal: 12 * 60_000, chatty: 5 * 60_000 }[this.s.chatter];
     if (Number.isFinite(every) && this.cooldown("quip", every * rand(0.8, 1.4))) {
-      const pool = h < 11 ? QUIPS.morning : h < 17 ? QUIPS.afternoon : h < 22 ? QUIPS.evening : QUIPS.night;
+      const pool = ph === "start" || ph === "early" || ph === "before" ? QUIPS.morning : ph === "mid" ? QUIPS.afternoon : ph === "late" || ph === "wrap" ? QUIPS.evening : QUIPS.night;
       this.voice.auto("quip", pick(Math.random() < 0.5 ? pool : QUIPS.any));
     }
   }
@@ -485,6 +516,7 @@ export class Brain {
     };
     const done = () => {
       this.snoozes[kind] = 0;
+      this.activity.count("breaks");
       this.voice.engaged(key);
       this.b.mood.nudge(0.08);
       this.mem.interacted();
@@ -498,7 +530,7 @@ export class Brain {
   }
 
   private async morning() {
-    await this.b.play("coffee", { text: `Good morning${this.s.userName ? ", " + this.s.userName : ""}! ☕${this.weather ? "  " + weatherText(this.weather, this.s.weather.unit) : ""}` });
+    await this.b.play("coffee", { text: `${greetWord()}${this.s.userName ? ", " + this.s.userName : ""}! Shift's starting ☕${this.weather ? "  " + weatherText(this.weather, this.s.weather.unit) : ""}` });
   }
 
   /** On launch: a greeting that knows how long we've been apart. */
@@ -507,18 +539,19 @@ export class Brain {
     const days = gapMs / 86_400_000;
     if (days >= 2) this.b.mood.nudge(0.25); // so happy you're back
     // a morning launch greeting counts as the day's morning hello
-    if (hour() >= 5 && hour() < 11) this.mem.once("morning");
+    if (phase(this.shift) === "start") this.mem.once("morning");
     await this.b.play(days >= 2 ? "celebrate" : "wave", { text }, { force: true });
   }
 
   private welcomeBack(awayMs: number) {
     const mins = Math.round(awayMs / 60_000);
     const name = this.s.userName ? `, ${this.s.userName}` : "";
-    const lunch = this.mem.learnLunch(new Date(this.awayStart || Date.now() - awayMs), awayMs);
+    const lunch = this.mem.learnLunch(new Date(this.awayStart || Date.now() - awayMs), awayMs, this.shift);
+    if (lunch) { const a = new Date(this.awayStart || Date.now() - awayMs); this.activity.lunchAt(a.getHours() * 60 + a.getMinutes()); }
     this.b.mood.nudge(mins >= 30 ? 0.12 : 0.05);
     this.b.play("wakeUp", undefined, { force: true }).then(() => {
       if (this.voice.mode === "quiet") return;
-      if (lunch) this.b.play("wave", { text: pick([`How was lunch${name}? 🍜`, `Welcome back${name}! Good lunch?`]) });
+      if (lunch) this.b.play("wave", { text: pick([`How was ${mealWord(this.mem.m.lunchMin ?? mealGuess(this.shift)).toLowerCase()}${name}? 🍜`, `Welcome back${name}! Good break?`]) });
       else if (mins >= 30) this.b.play("celebrate", { text: `Welcome back${name}! You were away ${mins >= 90 ? Math.round(mins / 60) + "h" : mins + " min"}.` });
       else this.b.play("wave", { text: pick([`Oh! You're back${name} 👋`, `Welcome back${name}!`, "Hey there!"]) });
     });
@@ -533,6 +566,7 @@ export class Brain {
       this.ui.say(`Focus mode: ${this.s.focus.work} min. I'll keep quiet 🎧`, { ms: 3000 });
     } else if (next === "short" || next === "long") {
       chime("down");
+      if (prev === "work") this.activity.count("focus");
       this.b.mood.nudge(0.1);
       this.ui.setRing(true, 0, "", "break");
       this.b.play("breakTime", { text: next === "long" ? "Long break! Go for a walk 🚶" : "Break time! Stretch with me 🙆" }, { force: true });
@@ -561,6 +595,36 @@ export class Brain {
     return this.weather;
   }
 
+  // ------------------------------------------------------------------ your day: standup + comic
+
+  offerStandup() {
+    const prev = this.activity.previous();
+    if (!prev) return;
+    const text = standup(prev, this.isYesterday(prev.day) ? "Yesterday" : "Last time");
+    this.b.play("holdNote", { text: "Standup notes ✓" }, { force: true });
+    setTimeout(() => this.voice.say("standup", "I wrote your standup notes from yesterday 📝", {
+      buttons: [
+        { label: "Copy", primary: true, fn: () => { invoke("clip_set", { text }).catch(() => {}); this.ui.say("Copied! Paste away 📋", { ms: 2000 }); } },
+        { label: "Show", fn: () => invoke("open_panel", { tab: "day" }) },
+      ],
+    }), 1200);
+  }
+
+  offerComic() {
+    this.b.play("doodle", undefined, { force: true });
+    setTimeout(() => this.voice.say("comic", "I drew a comic of your day ✏️", {
+      buttons: [
+        { label: "Show me", primary: true, fn: () => invoke("open_panel", { tab: "day" }) },
+        { label: "Later", fn: () => {} },
+      ],
+    }), 2600);
+  }
+
+  private isYesterday(day: string) {
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    return day === `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+  }
+
   // ------------------------------------------------------------------ Hacker News
 
   private storyHtml(st: Story, head: string) {
@@ -583,7 +647,7 @@ export class Brain {
     const st = pickStory(items, seen, this.s.news);
     if (!st || !this.calm || this.focus.working || this.b.priority >= 1) return;
     if (!this.voice.allow("news")) return; // over budget → try again next round
-    seen[st.id] = Date.now(); this.mem.save();
+    seen[st.id] = Date.now(); this.mem.save(); this.activity.count("news");
     const kw = matches(st.title, this.s.news.keywords);
     // the bubble pops exactly when he lowers the paper to tell you
     this.b.play("news", { onPeek: () => this.voice.say("news", this.storyHtml(st, kw ? `About ${kw} on Hacker News` : "Big on Hacker News"),
@@ -621,10 +685,18 @@ export class Brain {
     this.b.play("weather", { kind: w.kind, text: `${this.s.weather.city}: ${weatherText(w, this.s.weather.unit)}` }, { force: true });
   }
 
-  private async setWindowHidden(h: boolean) {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    if (h) await getCurrentWindow().hide(); else await getCurrentWindow().show();
-    this.b.setHidden(h || this.presence.locked);
+  /** Make the OS window and the animation loop match the *current* wanted state. Serialised, so
+   *  a quick hide→show can't finish out of order and leave him visible but frozen mid-duck. */
+  private syncing: Promise<void> = Promise.resolve();
+  userVisible = true; // tray / menu "Hide buddy"
+  syncWindow() {
+    this.syncing = this.syncing.then(async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const hide = this.hiddenByFullscreen || !this.userVisible;
+      if (hide) await getCurrentWindow().hide(); else if (this.userVisible) await getCurrentWindow().show();
+      this.b.setHidden(hide || this.presence.locked);
+    }).catch(() => {});
+    return this.syncing;
   }
 }
 

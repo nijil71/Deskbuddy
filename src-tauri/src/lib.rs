@@ -42,7 +42,8 @@ impl KeepCfg {
         }
         let (dow, h, m) = win::local_time();
         let now = h * 60 + m;
-        self.days[dow as usize % 7] && now >= self.start_min && now < self.end_min
+        self.days[dow as usize % 7]
+            && if self.start_min <= self.end_min { now >= self.start_min && now < self.end_min } else { now >= self.start_min || now < self.end_min }
     }
 }
 
@@ -100,6 +101,22 @@ fn do_nudge(st: St) {
 #[tauri::command]
 fn get_monitors() -> Vec<win::Monitor> {
     win::monitors()
+}
+
+/// Save an image the panel rendered (the daily comic) into Pictures\Deskbud. Returns the full path.
+#[tauri::command]
+fn save_png(name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let dir = win::pictures_dir().join("Deskbud");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let safe: String = name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(60).collect();
+    let path = dir.join(format!("{}.png", if safe.is_empty() { "deskbud-comic".to_string() } else { safe }));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn get_taskbars() -> Vec<win::Rect> {
+    win::taskbars()
 }
 
 #[tauri::command]
@@ -298,6 +315,8 @@ fn cursor_worker(app: AppHandle, st: Arc<Shared>) {
     std::thread::spawn(move || {
         let mut last = (i32::MIN, i32::MIN);
         let mut ignoring: Option<bool> = None;
+        let mut n: u32 = 0;
+        let mut bars = String::new();
         loop {
             let visible = st.visible.load(Ordering::Relaxed);
             std::thread::sleep(Duration::from_millis(if visible { 40 } else { 500 }));
@@ -320,6 +339,16 @@ fn cursor_worker(app: AppHandle, st: Arc<Shared>) {
             if (x, y) != last {
                 last = (x, y);
                 let _ = app.emit_to("main", "cursor", (x, y));
+            }
+            // auto-hide taskbars slide in and out: tell the buddy so it can hop on / drop down
+            n = n.wrapping_add(1);
+            if n % 3 == 0 {
+                let tb = win::taskbars();
+                let key = format!("{:?}", tb);
+                if key != bars {
+                    bars = key;
+                    let _ = app.emit_to("main", "taskbars", tb);
+                }
             }
         }
     });
@@ -536,6 +565,8 @@ pub fn run() {
             get_keepalive,
             do_nudge,
             get_monitors,
+            get_taskbars,
+            save_png,
             get_windows,
             get_foreground,
             get_cursor,

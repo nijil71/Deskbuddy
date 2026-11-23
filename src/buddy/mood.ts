@@ -5,10 +5,13 @@
 // so the buddy is never punished into sadness (no Tamagotchi guilt).
 import type { Pose } from "./pose";
 import { clamp } from "./pose";
+import { energyTarget, type Shift } from "../shared/shift";
 
 const BASE_V = 0.3;
 
 export class Mood {
+  /** your working hours; energy follows them (perky at the start, tired after the end) */
+  shift: Shift | null = null;
   constructor(public v = BASE_V, public e = 0.8) {}
 
   /** dt in seconds. Drift valence home; energy follows the time of day. */
@@ -17,7 +20,7 @@ export class Mood {
     this.v += (BASE_V - this.v) * k;
     const h = new Date().getHours() + new Date().getMinutes() / 60;
     // natural daily curve: perky morning, post-lunch dip, tired late evening
-    const target = h < 6 ? 0.25 : h < 11 ? 0.9 : h < 13.5 ? 0.8 : h < 15.5 ? 0.6 : h < 19 ? 0.75 : h < 22.5 ? 0.55 : 0.3;
+    const target = this.shift ? energyTarget(this.shift) : h < 6 ? 0.25 : h < 11 ? 0.9 : h < 13.5 ? 0.8 : h < 15.5 ? 0.6 : h < 19 ? 0.75 : h < 22.5 ? 0.55 : 0.3;
     const ke = 1 - Math.exp(-dt / (sleeping ? 600 : 3600));
     this.e += ((sleeping ? 1 : target) - this.e) * ke;
     this.v = clamp(this.v, -0.6, 1);

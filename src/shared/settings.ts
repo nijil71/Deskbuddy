@@ -39,16 +39,20 @@ export interface Settings {
   weather: { city: string; lat: number | null; lon: number | null; unit: "c" | "f" };
   /** Hacker News: buddy mentions big stories (or ones matching your keywords) */
   news: NewsCfg;
+  /** private on-device diary → standup notes + daily comic */
+  activity: { on: boolean; ignore: string[] };
   launcher: LaunchItem[];
   meetings: Meeting[];
   autostart: boolean;
   firstRun: boolean;
+  /** work hours were confirmed (stops the one-time 9–18 → 14–23 migration) */
+  shiftSet: boolean;
 }
 
 export const DEFAULTS: Settings = {
   keep: {
     enabled: true, thresholdS: 210, workHoursOnly: true,
-    days: [false, true, true, true, true, true, false], startMin: 9 * 60, endMin: 18 * 60, pauseInCall: true,
+    days: [false, true, true, true, true, true, false], startMin: 14 * 60, endMin: 23 * 60, pauseInCall: true,
   },
   skin: "ink",
   accessory: "auto",
@@ -70,6 +74,7 @@ export const DEFAULTS: Settings = {
   focus: { work: 25, short: 5, long: 15, rounds: 4 },
   weather: { city: "", lat: null, lon: null, unit: "c" },
   news: { on: true, feed: "top", minScore: 400, keywords: [] },
+  activity: { on: true, ignore: [] },
   launcher: [
     { name: "Microsoft Teams", target: "msteams:" },
     { name: "Notepad", target: "notepad.exe" },
@@ -83,6 +88,7 @@ export const DEFAULTS: Settings = {
   meetings: [],
   autostart: true,
   firstRun: true,
+  shiftSet: false,
 };
 
 let storeP: Promise<Store> | null = null;
@@ -100,7 +106,14 @@ function merge<T>(base: T, over: any): T {
 
 export async function loadSettings(): Promise<Settings> {
   const s = await store();
-  return merge(DEFAULTS, await s.get("settings"));
+  const raw = await s.get<any>("settings");
+  const v = merge(DEFAULTS, raw);
+  // one-time: installs still on the old untouched 09:00–18:00 default move to your 14:00–23:00 shift
+  if (raw && !raw.shiftSet && v.keep.startMin === 9 * 60 && v.keep.endMin === 18 * 60) {
+    v.keep.startMin = 14 * 60; v.keep.endMin = 23 * 60;
+  }
+  v.shiftSet = true;
+  return v;
 }
 
 export async function saveSettings(v: Settings) {
