@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# frontend build output
+dist/
+*.tsbuildinfo
+
+# Tauri / Rust build output
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# logs & local env
+*.log
+npm-debug.log*
+.env
+.env.*
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# local Claude Code settings
+.claude/settings.local.json

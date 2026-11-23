@@ -1,0 +1,114 @@
+:root {
+  --ink: #161313; --paper: #fff; --hair: #161313; --skin: #fff; --shirt: #fff; --pants: #161313;
+  --accent: #5aa9e6; --glass: #161313; --blush: #ff9aa2;
+  --ui-bg: #fffdf8; --ui-ink: #1d1a1a; --ui-line: #1d1a1a; --ui-muted: #6b6560; --ui-accent: #2f7de1;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+html, body {
+  margin: 0; padding: 0; overflow: hidden;
+  background: transparent; user-select: none; -webkit-user-select: none;
+}
+#stage { position: absolute; left: 0; top: 0; width: 280px; height: 400px; transform-origin: 0 0; }
+.rig { position: absolute; inset: 0; overflow: visible; cursor: grab; }
+.rig:active { cursor: grabbing; }
+
+/* ---- ink style ---- */
+.rig .shadow { fill: #000; opacity: .16; }
+.rig .ln { fill: none; stroke: var(--ink); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.rig .ln.thin { stroke-width: 2.6; }
+.rig .ink-f { fill: var(--ink); }
+.rig .skin { fill: var(--skin); stroke: var(--ink); stroke-width: 4; stroke-linejoin: round; }
+.rig .head { stroke-width: 4.6; }
+.rig .hair { fill: var(--hair); stroke: var(--hair); stroke-width: 1.5; stroke-linejoin: round; }
+.rig .shine path { stroke: var(--paper); stroke-width: 2.4; stroke-linecap: round; opacity: .95; }
+.rig .glass { fill: none; stroke: var(--glass); stroke-width: 4.4; stroke-linejoin: round; stroke-linecap: round; }
+.rig .glint { fill: none; stroke: var(--paper); stroke-width: 2.6; stroke-linecap: round; opacity: 0; }
+.rig .eye-w { fill: var(--paper); stroke: var(--ink); stroke-width: 3.2; }
+.rig .blush { fill: var(--blush); opacity: .55; }
+.rig .hair-ln { stroke: var(--blush); stroke-width: 1.6; }
+.rig .shirt { fill: var(--shirt); stroke: var(--ink); stroke-width: 4; stroke-linejoin: round; }
+.rig .leg { fill: none; stroke: var(--pants); stroke-width: 8.5; stroke-linecap: round; }
+.rig .arm { fill: none; stroke: var(--ink); stroke-width: 5.5; stroke-linecap: round; }
+.rig .hand { fill: var(--skin); stroke: var(--ink); stroke-width: 3; }
+.rig text { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+
+/* ---- speech bubble ---- */
+.bubble {
+  --x: 140px; --y: 90px;
+  position: absolute; left: 0; top: 0; max-width: 228px; min-width: 40px;
+  transform: translate(calc(var(--x) - 50%), calc(var(--y) - 100%)) scale(.6);
+  transform-origin: 50% 100%;
+  opacity: 0; pointer-events: none;
+  background: var(--ui-bg); color: var(--ui-ink);
+  border: 2.5px solid var(--ui-line); border-radius: 16px;
+  padding: 8px 12px; font-size: 12.5px; line-height: 1.35; font-weight: 600;
+  box-shadow: 2px 3px 0 rgba(0,0,0,.18);
+  transition: opacity .14s ease, transform .14s ease;
+}
+.bubble.show {
+  opacity: 1; pointer-events: auto;
+  transform: translate(calc(var(--x) - 50%), calc(var(--y) - 100%)) scale(1);
+  transition: opacity .12s ease, transform .32s cubic-bezier(.34,1.56,.64,1);
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px;
+  background: var(--ui-bg); border-right: 2.5px solid var(--ui-line); border-bottom: 2.5px solid var(--ui-line);
+  transform: translateX(-50%) rotate(45deg); border-bottom-right-radius: 3px;
+}
+.bubble.thought { border-radius: 22px; border-style: dashed; }
+.bubble.thought::after { width: 9px; height: 9px; border: 2.5px solid var(--ui-line); border-radius: 50%; bottom: -16px; transform: translateX(-30%); }
+.bubble-btns { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+.bubble-btns:empty { display: none; }
+.bubble button, .menu button {
+  font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
+  border: 2px solid var(--ui-line); background: var(--ui-bg); color: var(--ui-ink);
+  border-radius: 9px; padding: 3px 9px; transition: transform .1s ease, background .1s;
+}
+.bubble button:hover { background: #f1ece2; }
+.bubble button:active, .menu button:active { transform: scale(.95); }
+.bubble button.primary { background: var(--ui-ink); color: var(--ui-bg); }
+
+/* ---- right-click menu (2-column grid so it always fits the 280x400 window) ---- */
+.menu {
+  position: absolute; width: 236px; padding: 5px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+  background: var(--ui-bg); border: 2.5px solid var(--ui-line); border-radius: 14px;
+  box-shadow: 3px 4px 0 rgba(0,0,0,.18);
+  opacity: 0; transform: scale(.85) translateY(6px); transform-origin: 50% 0; pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+}
+.menu.show { opacity: 1; transform: none; pointer-events: auto; transition: opacity .1s, transform .26s cubic-bezier(.34,1.56,.64,1); }
+.menu button {
+  display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; border: 0; text-align: left;
+  padding: 5px 6px; border-radius: 8px; font-weight: 600; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.menu button:hover { background: #efe9df; }
+.menu .mi { width: 16px; flex: none; text-align: center; }
+.menu-sep { grid-column: 1 / -1; height: 2px; margin: 3px 6px; background: var(--ui-line); opacity: .15; border-radius: 2px; }
+
+/* ---- focus ring ---- */
+.ring { position: absolute; left: 0; top: 0; width: 44px; height: 44px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.ring.show { opacity: 1; }
+.ring svg { width: 44px; height: 44px; transform: rotate(-90deg); }
+.ring circle { fill: var(--ui-bg); stroke-width: 4; }
+.ring .ring-bg { stroke: #d9d3c8; }
+.ring .ring-fg { fill: none; stroke: #e5484d; stroke-linecap: round; transition: stroke-dashoffset .9s linear; }
+.ring.break .ring-fg { stroke: #46a758; }
+.ring-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: var(--ui-ink); }
+
+/* ---- keep-alive badge ---- */
+.badge {
+  position: absolute; left: 186px; top: 344px; width: 9px; height: 9px; border-radius: 50%;
+  border: 2px solid var(--ui-line); background: #bbb; opacity: 0; transition: opacity .3s;
+}
+.badge.on { background: #46a758; }
+.badge.active { background: #46a758; opacity: 1; animation: pulse 1s ease-in-out infinite; }
+#stage:hover .badge { opacity: .9; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(70,167,88,.25); } }
+
+/* ---- camera flash ---- */
+#flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; border-radius: 40px; }
+#flash.go { animation: flash .45s ease-out; }
+@keyframes flash { 0% { opacity: .9; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) { .bubble, .menu { transition: opacity .1s; } }
