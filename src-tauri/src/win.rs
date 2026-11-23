@@ -438,3 +438,52 @@ pub fn make_noactivate(hwnd: isize) {
         SetWindowLongPtrW(h, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE.0 as isize);
     }
 }
+
+// ---------------------------------------------------------------- what the user is doing
+
+/// Executable file name (e.g. "ms-teams.exe") of a process, lower-cased.
+pub fn process_name(pid: u32) -> String {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    unsafe {
+        let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else { return String::new() };
+        let mut buf = [0u16; 520];
+        let mut len = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, windows::core::PWSTR(buf.as_mut_ptr()), &mut len).is_ok();
+        let _ = CloseHandle(h);
+        if !ok {
+            return String::new();
+        }
+        let full = String::from_utf16_lossy(&buf[..len as usize]);
+        full.rsplit(['\\', '/']).next().unwrap_or("").to_lowercase()
+    }
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq, Default)]
+pub struct NowPlaying {
+    pub title: String,
+    pub artist: String,
+    pub playing: bool,
+    pub app: String,
+}
+
+/// Current media session (Spotify, browser video, Media Player…) via the Windows
+/// System Media Transport Controls. Blocking; call from a worker thread.
+pub fn now_playing() -> Option<NowPlaying> {
+    use windows::Media::Control::{
+        GlobalSystemMediaTransportControlsSessionManager as Mgr,
+        GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
+    };
+    let mgr = Mgr::RequestAsync().ok()?.join().ok()?;
+    let s = mgr.GetCurrentSession().ok()?;
+    let props = s.TryGetMediaPropertiesAsync().ok()?.join().ok()?;
+    let playing = s.GetPlaybackInfo().ok()?.PlaybackStatus().ok()? == Status::Playing;
+    Some(NowPlaying {
+        title: props.Title().map(|h| h.to_string()).unwrap_or_default(),
+        artist: props.Artist().map(|h| h.to_string()).unwrap_or_default(),
+        playing,
+        app: s.SourceAppUserModelId().map(|h| h.to_string()).unwrap_or_default(),
+    })
+}

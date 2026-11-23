@@ -1,5 +1,6 @@
 // HTML overlay above the SVG: speech bubbles, right-click menu, focus ring, badge.
 import type { Buddy, SayOpts } from "../buddy/buddy";
+import { icon, iconize } from "../shared/icons";
 import { CX, HIP_Y, NECK, FACE, W, H } from "../buddy/rig";
 
 interface Queued { text: string; opts: SayOpts; }
@@ -18,6 +19,7 @@ export class Overlay {
   private sticky = false;
   private pos = { x: -1, y: -1 };
   menuOpen = false;
+  currentKey = "";   // suggestion key of the visible bubble ("" = you asked for it)
   quiet = false; // DND: suppress non-essential bubbles
 
   constructor(private host: HTMLElement, private b: Buddy) {
@@ -48,13 +50,14 @@ export class Overlay {
       return;
     }
     clearTimeout(this.hideTimer);
+    this.currentKey = opts.key ?? "";
     this.bubble.classList.toggle("thought", !!opts.thought);
-    if (opts.html) this.bubbleText.innerHTML = text; else this.bubbleText.textContent = text;
+    if (opts.html) this.bubbleText.innerHTML = text; else this.bubbleText.innerHTML = iconize(text);
     this.bubbleBtns.innerHTML = "";
     this.sticky = !!opts.buttons?.length;
     for (const btn of opts.buttons ?? []) {
       const e = document.createElement("button");
-      e.textContent = btn.label;
+      e.innerHTML = iconize(btn.label);
       if (btn.primary) e.className = "primary";
       e.onclick = (ev) => { ev.stopPropagation(); this.hideBubble(); btn.fn(); };
       this.bubbleBtns.appendChild(e);
@@ -110,7 +113,7 @@ export class Overlay {
     for (const it of items) {
       if (it.sep) { div("menu-sep", this.menu); continue; }
       const e = document.createElement("button");
-      e.innerHTML = `<span class="mi">${it.icon}</span>${it.label}`;
+      e.innerHTML = `<span class="mi${it.icon === "dot" ? " on" : ""}">${icon(it.icon)}</span>${it.label}`;
       e.onclick = (ev) => { ev.stopPropagation(); this.closeMenu(); it.fn(); };
       this.menu.appendChild(e);
     }

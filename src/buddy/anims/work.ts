@@ -77,8 +77,8 @@ export function registerWork(b: Buddy) {
   });
 
   // ------------------------------------------------------------ focus session (typing on laptop)
-  b.register("focus", (): Action => ({
-    name: "focus", dur: Infinity, fps: "idle", priority: 2, noLook: true, scene: "laptop", blend: 0.45,
+  b.register("focus", (a?: { dur?: number }): Action => ({
+    name: "focus", dur: a?.dur ?? Infinity, fps: "idle", priority: 2, noLook: true, scene: "laptop", blend: 0.45,
     update(b, t, dt, p) {
       sit(p, t, 0.1);
       p.hat = "headphones";

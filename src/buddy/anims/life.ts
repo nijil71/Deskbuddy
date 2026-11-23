@@ -259,8 +259,8 @@ export function registerLife(b: Buddy) {
     },
   }));
 
-  b.register("poke", (): Action => {
-    const kind = pick(["startle", "giggle", "huh"]);
+  b.register("poke", (a?: { kind?: "startle" | "giggle" | "huh" }): Action => {
+    const kind = a?.kind ?? pick(["startle", "giggle", "huh"]);
     return {
       name: "poke", dur: 1.6, fps: "high", priority: 4,
       enter(b) { const hc = b.headPos(); b.fx.emit(kind === "huh" ? "q" : "bang", hc.x + 52, hc.y - 80, { vy: -30, life: 0.9 }); },
@@ -280,9 +280,9 @@ export function registerLife(b: Buddy) {
     };
   });
 
-  b.register("shh", (): Action => ({
+  b.register("shh", (a?: { text?: string }): Action => ({
     name: "shh", dur: 3, fps: "mid", priority: 2,
-    enter(b) { b.say?.("Shh… you're in a call 🤫", { ms: 2800 }); },
+    enter(b) { b.say?.(a?.text ?? "Shh… you're in a call 🤫", { ms: 2800 }); },
     update(_b, t, _dt, p) {
       const k = easeOutBack(seg(t, 0, 0.4)) * (1 - easeInOut(seg(t, 2.5, 3)));
       handToMouth(p, "R", k);

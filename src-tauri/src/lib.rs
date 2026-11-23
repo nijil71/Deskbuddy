@@ -350,6 +350,59 @@ fn sysmon_worker(app: AppHandle) {
     });
 }
 
+#[derive(Serialize, Clone)]
+struct Foreground {
+    id: isize,
+    title: String,
+    exe: String,
+    rect: win::Rect,
+}
+
+/// What you're doing: foreground app (+ its rect, so the buddy can glance at it or notice
+/// when a window lands on top of it) every 0.7s, and the media session every 5s.
+/// Events are only emitted on change.
+fn awareness_worker(app: AppHandle, st: Arc<Shared>) {
+    std::thread::spawn(move || {
+        let mut last_fg: Option<Foreground> = None;
+        let mut exe_cache: (isize, String) = (0, String::new());
+        let mut last_media: Option<win::NowPlaying> = None;
+        let mut tick: u32 = 0;
+        loop {
+            std::thread::sleep(Duration::from_millis(700));
+            tick = tick.wrapping_add(1);
+            if !st.visible.load(Ordering::Relaxed) {
+                continue;
+            }
+            let fg = win::foreground().map(|w| {
+                if exe_cache.0 != w.id {
+                    exe_cache = (w.id, win::process_name(w.pid));
+                }
+                Foreground { id: w.id, title: w.title, exe: exe_cache.1.clone(), rect: w.rect }
+            });
+            let changed = match (&fg, &last_fg) {
+                (Some(a), Some(b)) => {
+                    a.id != b.id || a.title != b.title || (a.rect.x, a.rect.y, a.rect.w, a.rect.h) != (b.rect.x, b.rect.y, b.rect.w, b.rect.h)
+                }
+                (None, None) => false,
+                _ => true,
+            };
+            if changed {
+                if let Some(f) = &fg {
+                    let _ = app.emit_to("main", "fg", f.clone());
+                }
+                last_fg = fg;
+            }
+            if tick % 7 == 0 {
+                let m = win::now_playing();
+                if m != last_media {
+                    let _ = app.emit_to("main", "media", m.clone());
+                    last_media = m;
+                }
+            }
+        }
+    });
+}
+
 fn clipboard_worker(app: AppHandle, st: Arc<Shared>) {
     std::thread::spawn(move || {
         let mut last = win::clipboard_seq();
@@ -397,6 +450,7 @@ fn build_tray(app: &AppHandle, st: &Arc<Shared>) -> tauri::Result<()> {
             &MenuItem::with_id(app, "launcher", "Launcher (Ctrl+Alt+Space)", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &hide,
+            &MenuItem::with_id(app, "shh", "Shh for 1 hour", true, None::<&str>)?,
             &dnd,
             &MenuItem::with_id(app, "settings", "Settings && looks", true, None::<&str>)?,
             &MenuItem::with_id(app, "lab", "Animation lab", true, None::<&str>)?,
@@ -430,8 +484,8 @@ fn build_tray(app: &AppHandle, st: &Arc<Shared>) -> tauri::Result<()> {
                     };
                     let _ = app.emit("keepalive-toggled", enabled);
                 }
-                "dnd" => {
-                    let _ = app.emit("tray", "dnd");
+                "dnd" | "shh" => {
+                    let _ = app.emit("tray", id);
                 }
                 "focus" | "reminders" | "notes" | "clipboard" | "launcher" | "settings" | "lab" => {
                     open_panel_inner(app, id)
@@ -525,6 +579,7 @@ pub fn run() {
             cursor_worker(handle.clone(), shared.clone());
             sysmon_worker(handle.clone());
             clipboard_worker(handle.clone(), shared.clone());
+            awareness_worker(handle.clone(), shared.clone());
             Ok(())
         })
         .run(tauri::generate_context!())

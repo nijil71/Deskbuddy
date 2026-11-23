@@ -7,7 +7,9 @@ import { Buddy } from "./buddy/buddy";
 import { registerCore } from "./buddy/anims/core";
 import { registerLife } from "./buddy/anims/life";
 import { registerWork } from "./buddy/anims/work";
-import { Brain, type Presence, type SysStats } from "./buddy/brain";
+import { Brain, type Presence, type SysStats, type Fg, type Media } from "./buddy/brain";
+import { Voice } from "./buddy/voice";
+import { Remember } from "./buddy/memory";
 import { Overlay } from "./ui/overlay";
 import { W, H, CX, GROUND } from "./buddy/rig";
 import { loadSettings, onSettings, patchSettings, SKINS, type Settings } from "./shared/settings";
@@ -19,10 +21,16 @@ registerCore(buddy);
 registerLife(buddy);
 registerWork(buddy);
 const ui = new Overlay(stage, buddy);
-buddy.say = ui.say;
+// actions speak through here: reactions may be silenced, and carry their suggestion key
+buddy.say = (text, opts = {}) => {
+  if (buddy.silent) return;
+  ui.say(text, { ...opts, key: opts.key ?? buddy.sayKey });
+};
 
 let settings: Settings;
 let brain: Brain;
+let voice: Voice;
+const mem = new Remember();
 
 // ------------------------------------------------------------------ appearance
 
@@ -75,7 +83,7 @@ svg.addEventListener("pointermove", (e) => {
   if (Math.abs(hx - hc.x) < 75 && Math.abs(hy - hc.y) < 90) {
     petDist += Math.hypot(hx - petLast.x, hy - petLast.y);
     petDecay = performance.now();
-    if (petDist > 520 && buddy.priority < 4) { petDist = 0; buddy.play("pet"); }
+    if (petDist > 520 && buddy.priority < 4) { petDist = 0; buddy.play("pet"); brain?.onPet(); }
   }
   petLast = { x: hx, y: hy };
   if (performance.now() - petDecay > 900) petDist = 0;
@@ -116,13 +124,14 @@ svg.addEventListener("pointerup", (e) => {
   if (clickTimer) {
     clearTimeout(clickTimer); clickTimer = 0;
     if (buddy.actionName === "sleep") buddy.play("wakeUp", undefined, { force: true });
-    else buddy.play("wave", { text: greeting() }, { force: true });
+    else { buddy.play("wave", { text: greeting() }, { force: true }); brain?.onWave(); }
   } else {
     clickTimer = window.setTimeout(() => {
       clickTimer = 0;
       if (buddy.actionName === "sleep") { buddy.play("wakeUp", undefined, { force: true }); return; }
-      if (ui.bubbleVisible) { ui.hideBubble(); return; }
+      if (ui.bubbleVisible) { dismissBubble(); return; }
       buddy.play("poke", undefined, { force: buddy.priority < 4 });
+      brain?.onPoke();
     }, 260);
   }
 });
@@ -132,6 +141,16 @@ svg.addEventListener("contextmenu", (e) => {
   openMenu();
 });
 document.addEventListener("contextmenu", (e) => e.preventDefault());
+
+/** You waved a bubble away: counts towards muting that kind of suggestion. */
+function dismissBubble() {
+  if (voice?.dismissed()) ui.say("Okay, I won't bring that up again 🤐", { ms: 2200 });
+  else ui.hideBubble();
+}
+ui.bubble.addEventListener("click", (e) => {
+  if ((e.target as HTMLElement).closest("button")) return;
+  dismissBubble();
+});
 
 function greeting() {
   const h = new Date().getHours();
@@ -146,16 +165,16 @@ function openMenu() {
   const keepOn = settings.keep.enabled;
   ui.openMenu([
     f.running
-      ? { label: f.s.paused ? "Resume" : "Pause", icon: f.s.paused ? "▶" : "❚❚", fn: () => f.cmd(f.s.paused ? "resume" : "pause") }
-      : { label: `Focus ${settings.focus.work}m`, icon: "🎧", fn: () => f.cmd("start") },
+      ? { label: f.s.paused ? "Resume" : "Pause", icon: f.s.paused ? "play" : "pause", fn: () => f.cmd(f.s.paused ? "resume" : "pause") }
+      : { label: `Focus ${settings.focus.work}m`, icon: "headphones", fn: () => f.cmd("start") },
     f.running
-      ? { label: "Stop focus", icon: "■", fn: () => f.cmd("stop") }
-      : { label: "Weather", icon: "⛅", fn: () => brain.showWeather().catch(oops("check the weather")) },
-    { label: "Note", icon: "📝", fn: panel("notes") },
-    { label: "Clipboard", icon: "📋", fn: panel("clipboard") },
-    { label: "Launcher", icon: "🚀", fn: panel("launcher") },
+      ? { label: "Stop focus", icon: "stop", fn: () => f.cmd("stop") }
+      : { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
+    { label: "Note", icon: "note", fn: panel("notes") },
+    { label: "Clipboard", icon: "clipboard", fn: panel("clipboard") },
+    { label: "Launcher", icon: "rocket", fn: panel("launcher") },
     {
-      label: "Screenshot", icon: "📸",
+      label: "Screenshot", icon: "camera",
       fn: () => buddy.play("camera", {
         then: () => invoke<boolean>("shell_open", { target: "ms-screenclip:" })
           .then((ok) => { if (!ok) oops("open the snipping tool")(null); })
@@ -164,16 +183,24 @@ function openMenu() {
     },
     { label: "", icon: "", fn: () => {}, sep: true },
     {
-      label: keepOn ? "Keep-alive on" : "Keep-alive off", icon: keepOn ? "🟢" : "⚪",
+      label: keepOn ? "Keep-alive on" : "Keep-alive off", icon: keepOn ? "dot" : "ring",
       fn: () => patchSettings((s) => { s.keep.enabled = !keepOn; })
         .then(() => ui.say(!keepOn ? "Keep-alive on. I'll keep you green 🟢" : "Keep-alive off. Teams may show Away.", { ms: 2600 }))
         .catch(oops("change keep-alive")),
     },
-    { label: "Surprise!", icon: "🎲", fn: () => buddy.play(["juggle", "music", "magic", "celebrate", "yoyo", "doodle"][(Math.random() * 6) | 0], undefined, { force: true }) },
-    { label: buddy.actionName === "sleep" ? "Wake up" : "Nap", icon: "💤", fn: () => buddy.actionName === "sleep" ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
-    { label: "Settings", icon: "⚙️", fn: panel("settings") },
-    { label: "Hide", icon: "🙈", fn: () => invoke("set_buddy_visible", { visible: false }).catch(oops("hide")) },
-    { label: "Lab", icon: "🎭", fn: panel("lab") },
+    {
+      label: `Mode: ${settings.mode === "work" ? "Work" : settings.mode === "chill" ? "Chill" : "Quiet"}`,
+      icon: settings.mode === "work" ? "briefcase" : settings.mode === "chill" ? "sparkles" : "mute",
+      fn: () => brain.setMode(settings.mode === "work" ? "chill" : settings.mode === "chill" ? "quiet" : "work"),
+    },
+    voice.shushed
+      ? { label: "Un-shh", icon: "volume", fn: () => brain.unshh() }
+      : { label: "Shh 1 hour", icon: "mute", fn: () => brain.shh(60) },
+    { label: "Surprise!", icon: "dice", fn: () => buddy.play(["juggle", "music", "magic", "celebrate", "yoyo", "doodle"][(Math.random() * 6) | 0], undefined, { force: true }) },
+    { label: buddy.actionName === "sleep" ? "Wake up" : "Nap", icon: "moon", fn: () => buddy.actionName === "sleep" ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
+    { label: "Settings", icon: "gear", fn: panel("settings") },
+    { label: "Hide", icon: "eyeOff", fn: () => invoke("set_buddy_visible", { visible: false }).catch(oops("hide")) },
+    { label: "Lab", icon: "film", fn: panel("lab") },
   ]);
   setTimeout(() => { if (ui.menuOpen) ui.closeMenu(); }, 9000);
 }
@@ -203,6 +230,7 @@ buddy.onFrame = (dt) => {
 buddy.world.onLand = (impact, surface) => {
   if (buddy.dragging) return;
   const hard = impact > 1900;
+  if (hard) brain?.onRoughLanding();
   buddy.play("land", { impact }, { force: true }).then((ok) => {
     if (ok && hard) buddy.play("dizzy", undefined, { force: true });
     else if (ok && surface.kind === "window") buddy.play("sit", { dur: 4 });
@@ -216,7 +244,10 @@ async function boot() {
   settings = await loadSettings();
   applyLook(settings);
   await buddy.world.init();
-  brain = new Brain(buddy, ui, settings);
+  await mem.load();
+  const gap = mem.startSession();
+  voice = new Voice(ui, settings, mem.m, mem.save);
+  brain = new Brain(buddy, ui, settings, mem, voice);
   brain.setSettings(settings);
   pushKeepalive(settings);
 
@@ -226,6 +257,8 @@ async function boot() {
   await listen("nudge-done", () => brain.onNudgeDone());
   await listen<SysStats>("sysmon", (e) => brain.onSysmon(e.payload));
   await listen<string>("clipboard", (e) => brain.onClipboard(e.payload));
+  await listen<Fg>("fg", (e) => brain.onForeground(e.payload));
+  await listen<Media | null>("media", (e) => brain.onMedia(e.payload));
   await listen<boolean>("visibility", (e) => buddy.setHidden(!e.payload));
   await listen<boolean>("keepalive-toggled", (e) => {
     patchSettings((s) => { s.keep.enabled = e.payload; });
@@ -238,6 +271,7 @@ async function boot() {
       buddy.play("wave", { text: greeting() }, { force: true });
     }
     if (e.payload === "dnd") patchSettings((s) => { s.dnd = !s.dnd; });
+    if (e.payload === "shh") voice.shushed ? brain.unshh() : brain.shh(60);
   });
   await listen<{ action: string; args?: any }>("lab-play", (e) => {
     const { action, args } = e.payload;
@@ -275,6 +309,7 @@ async function boot() {
   w.launch(0, 0);
   await buddy.play("airborne", undefined, { force: true });
 
+  if (!settings.firstRun) setTimeout(() => brain.greet(gap, false), 900);
   if (settings.firstRun) {
     setTimeout(() => {
       buddy.play("wave", { text: "Hi! I'm your desk buddy 👋" }, { force: true }).then(() =>

@@ -5,23 +5,26 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { enable as autoOn, disable as autoOff, isEnabled as autoIs } from "@tauri-apps/plugin-autostart";
 import {
-  loadSettings, saveSettings, loadNotes, saveNotes, uid, today, onSettings,
+  loadSettings, saveSettings, loadNotes, saveNotes, uid, today, onSettings, loadMemory, saveMemory,
   type Settings, type Note,
 } from "../shared/settings";
 import { geocode } from "../services/weather";
+import { icon } from "../shared/icons";
 import type { FocusState } from "../services/focus";
 
 const win = getCurrentWindow();
 const view = document.getElementById("view")!;
 const tabsEl = document.getElementById("tabs")!;
+document.getElementById("close")!.innerHTML = icon("x");
+document.getElementById("min")!.innerHTML = icon("minimize");
 document.getElementById("close")!.onclick = () => win.close();
 document.getElementById("min")!.onclick = () => win.minimize();
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") win.close(); });
 document.addEventListener("contextmenu", (e) => { if (!(e.target as HTMLElement).closest("input,textarea")) e.preventDefault(); });
 
 const TABS = [
-  ["focus", "🎧", "Focus"], ["reminders", "⏰", "Reminders"], ["notes", "📝", "Notes"],
-  ["clipboard", "📋", "Clipboard"], ["launcher", "🚀", "Launcher"], ["settings", "⚙️", "Settings"], ["lab", "🎭", "Lab"],
+  ["focus", "headphones", "Focus"], ["reminders", "clock", "Reminders"], ["notes", "note", "Notes"],
+  ["clipboard", "clipboard", "Clipboard"], ["launcher", "rocket", "Launcher"], ["settings", "gear", "Settings"], ["lab", "film", "Lab"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -45,8 +48,8 @@ function toast(msg: string) {
 }
 
 function renderTabs() {
-  tabsEl.innerHTML = TABS.map(([id, icon, label]) =>
-    `<button data-tab="${id}" class="${id === current ? "on" : ""}" title="${label}"><span>${icon}</span><em>${label}</em></button>`).join("");
+  tabsEl.innerHTML = TABS.map(([id, ic, label]) =>
+    `<button data-tab="${id}" class="${id === current ? "on" : ""}" title="${label}"><span>${icon(ic)}</span><em>${label}</em></button>`).join("");
   tabsEl.querySelectorAll<HTMLButtonElement>("button").forEach((b) => (b.onclick = () => show(b.dataset.tab as Tab)));
 }
 
@@ -94,8 +97,8 @@ function focus() {
     $("#fp").textContent = st.phase === "idle" ? "Ready" : st.paused ? "Paused" : st.phase === "work" ? `Focus · round ${st.round}` : st.phase === "long" ? "Long break" : "Short break";
     const btn = (a: string, l: string, cls = "") => `<button class="btn ${cls}" data-a="${a}">${l}</button>`;
     $("#fbtns").innerHTML = st.phase === "idle"
-      ? btn("start", "▶ Start focus", "primary") + btn("break", "☕ Take a break")
-      : (st.paused ? btn("resume", "▶ Resume", "primary") : btn("pause", "❚❚ Pause", "primary")) + btn("skip", "⏭ Skip") + btn("stop", "■ Stop");
+      ? btn("start", `${icon("play")} Start focus`, "primary") + btn("break", `${icon("coffee")} Take a break`)
+      : (st.paused ? btn("resume", `${icon("play")} Resume`, "primary") : btn("pause", `${icon("pause")} Pause`, "primary")) + btn("skip", `${icon("skip")} Skip`) + btn("stop", `${icon("stop")} Stop`);
     $$("#fbtns button").forEach((b) => (b.onclick = () => emit("focus-cmd", { action: b.dataset.a })));
   };
   render({ phase: "idle", endsAt: 0, remaining: S.focus.work * 60000, total: 1, round: 1, rounds: 4, paused: false });
@@ -114,18 +117,18 @@ function focus() {
 function reminders() {
   const R = S.reminders;
   const items: [keyof typeof R, string, string][] = [
-    ["water", "💧", "Drink water"], ["stretch", "🙆", "Stand & stretch"], ["eyes", "👀", "Eye break (20-20-20)"], ["posture", "🪑", "Posture check"],
+    ["water", "droplet", "Drink water"], ["stretch", "stretch", "Stand & stretch"], ["eyes", "eye", "Eye break (20-20-20)"], ["posture", "chair", "Posture check"],
   ];
   const opts = [10, 15, 20, 30, 45, 50, 60, 90, 120];
   const meetings = S.meetings.filter((m) => m.date >= today()).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   view.innerHTML = `
     <section class="card">
       <h3>Wellbeing reminders</h3>
-      ${items.map(([k, icon, label]) => `
+      ${items.map(([k, ic, label]) => `
         <div class="setting">
-          <span class="ico">${icon}</span><span class="grow">${label}</span>
+          <span class="ico">${icon(ic)}</span><span class="grow">${label}</span>
           <select data-every="${k}">${opts.map((o) => `<option value="${o}" ${R[k].every === o ? "selected" : ""}>every ${o} min</option>`).join("")}</select>
-          <button class="mini" data-test="${k}" title="Try it">▶</button>
+          <button class="mini" data-test="${k}" title="Try it">${icon("play")}</button>
           <label class="switch"><input type="checkbox" data-on="${k}" ${R[k].on ? "checked" : ""}><i></i></label>
         </div>`).join("")}
       <p class="muted">Reminders only appear while you're at the desk, never during calls or focus sessions.</p>
@@ -138,7 +141,7 @@ function reminders() {
         <button class="btn primary" id="madd">Add</button>
       </div>
       <ul class="list" id="ml">
-        ${meetings.length ? meetings.map((m) => `<li><b>${m.time}</b><span class="grow">${esc(m.title)}</span><small>${m.date === today() ? "today" : m.date}</small><button class="mini" data-del="${m.id}">✕</button></li>`).join("") : `<li class="empty">No meetings yet. Your buddy will hold up a sign 5 min and 1 min before.</li>`}
+        ${meetings.length ? meetings.map((m) => `<li><b>${m.time}</b><span class="grow">${esc(m.title)}</span><small>${m.date === today() ? "today" : m.date}</small><button class="mini" data-del="${m.id}">${icon("x")}</button></li>`).join("") : `<li class="empty">No meetings yet. Your buddy will hold up a sign 5 min and 1 min before.</li>`}
       </ul>
     </section>`;
   $$("[data-every]").forEach((s) => ((s as HTMLSelectElement).onchange = () => { R[s.dataset.every as keyof typeof R].every = +(s as HTMLSelectElement).value; save(); }));
@@ -180,7 +183,7 @@ async function notes() {
         <article class="note" style="background:${n.color}" data-id="${n.id}">
           <div contenteditable="true" spellcheck="false">${esc(n.text)}</div>
           <footer><small>${new Date(n.ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</small>
-          <span class="grow"></span><button class="mini" data-show title="Buddy holds it up">🙋</button><button class="mini" data-copy title="Copy">⧉</button><button class="mini" data-del title="Delete">✕</button></footer>
+          <span class="grow"></span><button class="mini" data-show title="Buddy holds it up">${icon("hand")}</button><button class="mini" data-copy title="Copy">${icon("copy")}</button><button class="mini" data-del title="Delete">${icon("x")}</button></footer>
         </article>`).join("") : `<p class="muted center">No notes yet.</p>`}</div>`;
     let color = COLORS[0];
     $$(".sw").forEach((b) => (b.onclick = () => { $$(".sw").forEach((x) => x.classList.remove("on")); b.classList.add("on"); color = b.dataset.c!; }));
@@ -216,7 +219,7 @@ async function clipboard() {
     $("#cl").innerHTML = f.length ? f.map((t, i) => `
       <li class="clip" data-i="${i}" title="Click to copy">
         <pre>${esc(t.length > 400 ? t.slice(0, 400) + "…" : t)}</pre>
-        <button class="mini" data-del="${i}" title="Remove">✕</button>
+        <button class="mini" data-del="${i}" title="Remove">${icon("x")}</button>
       </li>`).join("") : `<li class="empty">${items.length ? "Nothing matches." : "Copy some text and it'll show up here (last 30, kept in memory only)."}</li>`;
     $$("#cl .clip").forEach((li) => {
       const t = f[+li.dataset.i!];
@@ -276,9 +279,9 @@ function launcher() {
     sel = Math.min(sel, Math.max(0, r.length - 1));
     $("#ll").innerHTML = r.map((it, k) => `
       <li class="${k === sel ? "sel" : ""}" data-k="${k}">
-        <span class="ico">${it.kind === "web" ? "🔎" : it.kind === "open" ? "↗" : iconFor(it.target)}</span>
+        <span class="ico">${icon(it.kind === "web" ? "search" : it.kind === "open" ? "external" : iconFor(it.target))}</span>
         <span class="grow"><b>${esc(it.name)}</b><small>${esc(it.target)}</small></span>
-        ${it.kind === "pin" ? `<button class="mini" data-unpin="${it.i}" title="Unpin">✕</button>` : `<kbd>↵</kbd>`}
+        ${it.kind === "pin" ? `<button class="mini" data-unpin="${it.i}" title="Unpin">${icon("x")}</button>` : `<kbd>${icon("enter")}</kbd>`}
       </li>`).join("") || `<li class="empty">Nothing pinned matches.</li>`;
     $$("#ll li[data-k]").forEach((li) => (li.onclick = (e) => {
       const un = (e.target as HTMLElement).closest("[data-unpin]") as HTMLElement | null;
@@ -289,7 +292,7 @@ function launcher() {
   const go = async (it?: { target: string; name: string }) => {
     if (!it) return;
     const ok = await invoke<boolean>("shell_open", { target: it.target });
-    if (ok) win.close(); else toast("Couldn't open that 😕");
+    if (ok) win.close(); else toast("Couldn't open that");
   };
   q.oninput = () => { sel = 0; draw(); };
   q.onkeydown = (e) => {
@@ -309,14 +312,14 @@ function launcher() {
 }
 
 function iconFor(t: string) {
-  if (/^https?:/i.test(t)) return "🌐";
-  if (/^ms-settings:/i.test(t)) return "⚙️";
-  if (/^msteams:/i.test(t)) return "💬";
-  if (/^shell:|\\$|^[a-z]:\\[^.]*$/i.test(t)) return "📁";
-  if (/calc/i.test(t)) return "🧮";
-  if (/notepad/i.test(t)) return "🗒️";
-  if (/screenclip/i.test(t)) return "📸";
-  return "⚡";
+  if (/^https?:/i.test(t)) return "globe";
+  if (/^ms-settings:/i.test(t)) return "gear";
+  if (/^msteams:/i.test(t)) return "chat";
+  if (/^shell:|\\$|^[a-z]:\\[^.]*$/i.test(t)) return "folder";
+  if (/calc/i.test(t)) return "calculator";
+  if (/notepad/i.test(t)) return "note";
+  if (/screenclip/i.test(t)) return "camera";
+  return "zap";
 }
 
 // ------------------------------------------------------------------ Settings
@@ -327,9 +330,31 @@ async function settings() {
   const tm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   let auto = false;
   try { auto = await autoIs(); } catch { /* dev mode */ }
+  const mem = await loadMemory();
+  const mv = mem.mood.v, me = mem.mood.e;
+  const [mIc, mTxt] = me < 0.3 ? ["faceSleep", "Sleepy"] : mv > 0.7 ? ["faceHappy", "Delighted"] : mv > 0.35 ? ["faceSmile", "Happy"] : mv > 0.05 ? ["faceCalm", "Content"] : mv > -0.25 ? ["faceMeh", "A bit bored"] : ["faceSad", "Missing you"];
+  const moodLabel = `${icon(mIc)} ${mTxt}`;
+  const lunch = mem.lunchMin == null ? "still learning" : `${String(Math.floor(mem.lunchMin / 60)).padStart(2, "0")}:${String(mem.lunchMin % 60).padStart(2, "0")}`;
+  const mutedN = Object.keys(mem.muted).length;
+  const bday = S.birthday && /^\d{2}-\d{2}$/.test(S.birthday) ? `${new Date().getFullYear()}-${S.birthday}` : "";
   view.innerHTML = `
+    <section class="card buddy-card">
+      <h3>${icon("user")} You & your buddy</h3>
+      <div class="stats">
+        <div><b>${moodLabel}</b><small>mood</small></div>
+        <div><b>${Math.max(1, mem.daysTogether)}</b><small>days together</small></div>
+        <div><b>${lunch}</b><small>your usual lunch</small></div>
+      </div>
+      <div class="setting"><span class="grow">Your name<small>Used in greetings. Stays on this PC.</small></span><input id="un" placeholder="optional" value="${esc(S.userName)}" style="width:150px"></div>
+      <div class="setting"><span class="grow">Birthday<small>Expect a party</small></span><input type="date" id="bd" value="${bday}"></div>
+      <div class="setting"><span class="grow">Mode</span>
+        <span class="seg">${(["work", "chill", "quiet"] as const).map((m) => `<button class="segb ${S.mode === m ? "on" : ""}" data-mode="${m}">${m === "work" ? icon("briefcase") + " Work" : m === "chill" ? icon("sparkles") + " Chill" : icon("mute") + " Quiet"}</button>`).join("")}</span></div>
+      <p class="muted">Work: calm, stays on the taskbar, at most 2 unprompted bubbles an hour. Chill: full personality, climbs windows, up to 5. Quiet: sits still and stays silent (meetings and keep-alive still work).</p>
+      ${mutedN ? `<div class="setting"><span class="grow">Muted suggestions<small>${mutedN} kind${mutedN > 1 ? "s" : ""} of suggestion you waved away twice</small></span><button class="btn" id="unmute">Unmute all</button></div>` : ""}
+    </section>
+
     <section class="card">
-      <h3>🟢 Keep Teams green</h3>
+      <h3><span class="live"></span> Keep Teams green</h3>
       <div class="setting"><span class="grow">Keep me Available while I step away<small>Your buddy nudges the mouse (1 px) + taps an invisible F15 key before Teams marks you Away.</small></span><label class="switch"><input type="checkbox" id="ke" ${K.enabled ? "checked" : ""}><i></i></label></div>
       <div class="setting"><span class="grow">Nudge after being idle for</span>
         <select id="kt">${[60, 120, 180, 210, 240].map((s) => `<option value="${s}" ${K.thresholdS === s ? "selected" : ""}>${s < 120 ? s + " s" : s / 60 + " min"}</option>`).join("")}</select></div>
@@ -341,7 +366,7 @@ async function settings() {
     </section>
 
     <section class="card">
-      <h3>🎨 Look & personality</h3>
+      <h3>${icon("palette")} Look & personality</h3>
       <div class="skins">
         ${(["ink", "night", "color"] as const).map((s) => `<button class="skin ${S.skin === s ? "on" : ""}" data-skin="${s}"><i class="sk-${s}"></i>${s === "ink" ? "Ink" : s === "night" ? "Night" : "Color"}</button>`).join("")}
       </div>
@@ -358,17 +383,22 @@ async function settings() {
     </section>
 
     <section class="card">
-      <h3>⛅ Weather</h3>
+      <h3>${icon("cloud")} Weather</h3>
       <div class="row gap"><input id="wc" class="grow" placeholder="Your city" value="${esc(S.weather.city)}"><select id="wu"><option value="c" ${S.weather.unit === "c" ? "selected" : ""}>°C</option><option value="f" ${S.weather.unit === "f" ? "selected" : ""}>°F</option></select><button class="btn" id="wf">Set</button></div>
       <p class="muted">Uses Open-Meteo (free, no account). Only the city name / coordinates are sent.</p>
     </section>
 
     <section class="card">
-      <h3>🖥️ App</h3>
+      <h3>${icon("monitor")} App</h3>
       <div class="setting"><span class="grow">Start with Windows</span><label class="switch"><input type="checkbox" id="as" ${auto ? "checked" : ""}><i></i></label></div>
       <div class="row gap"><button class="btn" id="summon">Bring buddy here</button><span class="grow"></span><button class="btn danger" id="quit">Quit Deskbud</button></div>
     </section>`;
 
+  $<HTMLInputElement>("#un").onchange = (e) => { S.userName = (e.target as HTMLInputElement).value.trim().slice(0, 30); save(); toast("Nice to meet you!"); };
+  $<HTMLInputElement>("#bd").onchange = (e) => { const v = (e.target as HTMLInputElement).value; S.birthday = v ? v.slice(5) : ""; save(); };
+  $$(".segb").forEach((b) => (b.onclick = () => { S.mode = b.dataset.mode as Settings["mode"]; S.shhUntil = 0; $$(".segb").forEach((x) => x.classList.toggle("on", x === b)); save(); }));
+  const um = document.getElementById("unmute");
+  if (um) um.onclick = async () => { const m = await loadMemory(); m.muted = {}; m.dismissed = {}; await saveMemory(m); toast("All suggestions unmuted"); settings(); };
   const chk = (id: string, f: (v: boolean) => void) => ($<HTMLInputElement>(id).onchange = (e) => { f((e.target as HTMLInputElement).checked); save(); });
   const sel = (id: string, f: (v: string) => void) => ($<HTMLSelectElement>(id).onchange = (e) => { f((e.target as HTMLSelectElement).value); save(); });
   const mins = (v: string) => { const [h, m] = v.split(":").map(Number); return h * 60 + m; };
@@ -412,16 +442,16 @@ async function settings() {
 // ------------------------------------------------------------------ Animation lab
 
 function labTab() {
-  const groups: [string, [string, string, unknown?][]][] = [
-    ["Moves", [["walk", "🚶 Walk"], ["__throw", "🤾 Throw"], ["__climb", "🧗 Climb window"], ["peek", "👀 Peek"], ["turn", "↩ Turn"], ["lookAround", "🔍 Look around"], ["dizzy", "💫 Dizzy"]]],
-    ["Feelings", [["wave", "👋 Wave", { text: "Hello!" }], ["celebrate", "🎉 Celebrate", { text: "Woohoo!", hat: true }], ["pet", "🥰 Pet"], ["poke", "👉 Poke"], ["yawn", "🥱 Yawn"], ["stretch", "🙆 Stretch"], ["sleep", "💤 Sleep", { sitting: true }], ["wakeUp", "⏰ Wake"], ["shh", "🤫 Shh"], ["think", "🤔 Think"]]],
-    ["Hobbies", [["read", "📖 Read"], ["juggle", "🤹 Juggle"], ["music", "🎧 Music"], ["doodle", "✏️ Doodle"], ["yoyo", "🪀 Yo-yo"], ["coffee", "☕ Coffee"], ["magic", "🪄 Magic"], ["holdPhone", "📱 Phone", { text: "Scrolling…" }]]],
-    ["Work", [["__nudge", "🟢 Keep-alive nudge"], ["focus", "💻 Focus"], ["breakTime", "🧘 Break"], ["drink", "💧 Water"], ["eyeBreak", "👓 Eye break", { secs: 6 }], ["posture", "🪑 Posture"], ["holdSign", "🪧 Sign", { text: "Standup!" }], ["holdNote", "📝 Note", { text: "Buy milk" }]]],
-    ["System", [["sweaty", "🥵 High CPU", { cpu: 93 }], ["heavyBox", "📦 High RAM", { mem: 94 }], ["lowBattery", "🪫 Low battery", { pct: 12 }], ["charging", "⚡ Charging"], ["camera", "📸 Camera"], ["catchPaper", "📋 Clipboard", { text: "copied text" }], ["__weather", "⛅ Weather"], ["weather", "🌧️ Rain", { kind: "rain", text: "Rainy!" }], ["weather", "❄️ Snow", { kind: "snow", text: "Snow!" }], ["weather", "😎 Sunny", { kind: "sun", text: "Sunny!" }]]],
+  const groups: [string, [string, string, string, unknown?][]][] = [
+    ["Moves", [["walk", "walk", "Walk"], ["__throw", "throw", "Throw"], ["__climb", "mountain", "Climb window"], ["peek", "eye", "Peek"], ["turn", "turn", "Turn"], ["lookAround", "search", "Look around"], ["dizzy", "star", "Dizzy"]]],
+    ["Feelings", [["wave", "hand", "Wave", { text: "Hello!" }], ["celebrate", "party", "Celebrate", { text: "Woohoo!", hat: true }], ["pet", "heart", "Pet"], ["poke", "pointer", "Poke"], ["yawn", "moon", "Yawn"], ["stretch", "stretch", "Stretch"], ["sleep", "zzz", "Sleep", { sitting: true }], ["wakeUp", "clock", "Wake"], ["shh", "mute", "Shh"], ["think", "bulb", "Think"]]],
+    ["Hobbies", [["read", "book", "Read"], ["juggle", "juggle", "Juggle"], ["music", "headphones", "Music"], ["doodle", "pencil", "Doodle"], ["yoyo", "yoyo", "Yo-yo"], ["coffee", "coffee", "Coffee"], ["magic", "wand", "Magic"], ["holdPhone", "phone", "Phone", { text: "Scrolling…" }]]],
+    ["Work", [["__nudge", "dot", "Keep-alive nudge"], ["focus", "laptop", "Focus"], ["breakTime", "leaf", "Break"], ["drink", "droplet", "Water"], ["eyeBreak", "glasses", "Eye break", { secs: 6 }], ["posture", "chair", "Posture"], ["holdSign", "sign", "Sign", { text: "Standup!" }], ["holdNote", "note", "Note", { text: "Buy milk" }]]],
+    ["System", [["sweaty", "thermo", "High CPU", { cpu: 93 }], ["heavyBox", "box", "High RAM", { mem: 94 }], ["lowBattery", "batteryLow", "Low battery", { pct: 12 }], ["charging", "charging", "Charging"], ["camera", "camera", "Camera"], ["catchPaper", "paper", "Clipboard", { text: "copied text" }], ["__weather", "cloud", "Weather"], ["weather", "rain", "Rain", { kind: "rain", text: "Rainy!" }], ["weather", "snow", "Snow", { kind: "snow", text: "Snow!" }], ["weather", "sun", "Sunny", { kind: "sun", text: "Sunny!" }]]],
   ];
   view.innerHTML = `<p class="muted">Tap any animation to see your buddy perform it.</p>` + groups.map(([g, list]) => `
     <section class="card"><h3>${g}</h3><div class="labgrid">
-      ${list.map(([a, l, args], i) => `<button class="chip" data-a="${a}" data-args='${args ? esc(JSON.stringify(args)) : ""}' data-i="${i}">${l}</button>`).join("")}
+      ${list.map(([a, ic, l, args], i) => `<button class="chip" data-a="${a}" data-args='${args ? esc(JSON.stringify(args)) : ""}' data-i="${i}">${icon(ic)}${l}</button>`).join("")}
     </div></section>`).join("");
   $$(".labgrid .chip").forEach((b) => (b.onclick = async () => {
     const a = b.dataset.a!;

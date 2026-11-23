@@ -112,3 +112,12 @@ html, body {
 @keyframes flash { 0% { opacity: .9; } 100% { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) { .bubble, .menu { transition: opacity .1s; } }
+
+/* ---- line icons (replace emojis) ---- */
+.i { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; flex: none; }
+.menu .mi { display: inline-flex; justify-content: center; color: #4a4440; }
+.menu .mi .i { width: 14px; height: 14px; }
+.menu .mi.on { color: #46a758; }
+.bubble .ie { width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin: 0 .05em; }
+.bubble button .i { width: 12px; height: 12px; vertical-align: -2px; }
+.bubble .ie-dot { color: #46a758; width: .8em; height: .8em; vertical-align: -0.05em; }

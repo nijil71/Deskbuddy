@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Rig, CX, GROUND } from "./rig";
 import { Fx } from "./fx";
 import { World } from "./world";
+import { Mood } from "./mood";
 import { basePose, blendPose, copyPose, easeInOut, rand, Spring, clamp, type Pose } from "./pose";
 
 export type Fps = "high" | "mid" | "idle" | "low";
@@ -13,6 +14,7 @@ export interface SayOpts {
   thought?: boolean;               // cloud-style thought bubble
   buttons?: { label: string; fn: () => void; primary?: boolean }[];
   html?: boolean;
+  key?: string;                    // which suggestion this is (for dismiss tracking)
 }
 
 export interface Action {
@@ -70,6 +72,10 @@ export class Buddy {
   /** externally forced look target in window px (e.g. at a prop), or null */
   lookAt: { x: number; y: number } | null = null;
   hat = "";                  // persistent accessory from settings/context
+  mood = new Mood();
+  musicOn = false;           // something is playing: bob along while idle
+  silent = false;            // play reactions without their speech bubble
+  sayKey = "";               // suggestion key attached to bubbles from the current reaction
   dragging = false;
   hidden = false;
   forceFps: Fps | null = null;
@@ -206,6 +212,19 @@ export class Buddy {
       }
     }
     const a = c?.a;
+
+    // mood colours calm behaviour; music makes it bob along
+    this.mood.update(dt, a?.name === "sleep");
+    const calmAction = !a || (a.priority ?? 1) <= 1;
+    if (calmAction && a?.name !== "sleep") {
+      this.mood.apply(p, this.time);
+      if (this.musicOn && a?.name !== "music" && a?.name !== "walk") {
+        const beat = this.time * Math.PI * 2 * 1.9;
+        p.head += Math.sin(beat) * 3.2;
+        p.headY += Math.abs(Math.sin(beat)) * 1.2;
+        p.lR2 += Math.max(0, Math.sin(beat)) * 12; // foot tap
+      }
+    }
 
     // breathing: visible chest rise that lifts the shoulders/arms; head lags a beat behind
     const T = this.time;

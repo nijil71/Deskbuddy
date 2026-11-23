@@ -28,7 +28,7 @@ export async function fetchWeather(lat: number, lon: number, unit: "c" | "f"): P
 }
 
 export function weatherText(w: Weather, unit: "c" | "f") {
-  const icon = { rain: "🌧️", snow: "❄️", sun: "☀️", cloud: "⛅", storm: "⛈️" }[w.kind];
+  const icon = { rain: "🌧", snow: "❄", sun: "☀", cloud: "⛅", storm: "⛈" }[w.kind]; // rendered as line icons by the bubble
   const tip = w.kind === "rain" || w.kind === "storm" ? " Take an umbrella!" : w.kind === "snow" ? " Bundle up!" : w.temp > (unit === "c" ? 30 : 86) ? " Stay hydrated!" : "";
   return `${icon} ${w.temp}°${unit.toUpperCase()} · ${w.label}.${tip}`;
 }

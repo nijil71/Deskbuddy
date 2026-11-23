@@ -24,6 +24,12 @@ export interface Settings {
   accessory: "auto" | "none" | "cap" | "headphones" | "crown" | "sunglasses" | "party";
   size: number;             // 0.8 .. 1.3
   chatter: "quiet" | "normal" | "chatty";
+  /** work: calm, stays on the taskbar, 2 unprompted bubbles/h · chill: full personality,
+   *  5/h · quiet: sits still, no bubbles or reminders (meetings & keep-alive still work) */
+  mode: "work" | "chill" | "quiet";
+  shhUntil: number;         // epoch ms; "shh for 1 hour"
+  userName: string;
+  birthday: string;         // "MM-DD" or 
   roam: boolean;            // walk around / climb windows
   hideFullscreen: boolean;
   dnd: boolean;
@@ -45,6 +51,10 @@ export const DEFAULTS: Settings = {
   accessory: "auto",
   size: 1,
   chatter: "normal",
+  mode: "work",
+  shhUntil: 0,
+  userName: "",
+  birthday: "",
   roam: true,
   hideFullscreen: true,
   dnd: false,
@@ -77,7 +87,9 @@ export const store = () => (storeP ??= load("deskbud.json", { autoSave: 300, def
 function merge<T>(base: T, over: any): T {
   if (over === undefined || over === null) return structuredClone(base);
   if (Array.isArray(base) || typeof base !== "object" || base === null) return over as T;
-  const out: any = { ...base };
+  if (typeof over !== "object" || Array.isArray(over)) return structuredClone(base);
+  // union of keys: defaults fill gaps, and map-like fields (Record<…>) keep their entries
+  const out: any = { ...over };
   for (const k of Object.keys(base as any)) out[k] = merge((base as any)[k], over[k]);
   return out;
 }
@@ -126,3 +138,36 @@ export const SKINS: Record<Settings["skin"], Record<string, string>> = {
   night: { "--ink": "#f3efe6", "--paper": "#24232a", "--hair": "#f3efe6", "--skin": "#24232a", "--shirt": "#24232a", "--pants": "#f3efe6", "--accent": "#7cc4f5", "--glass": "#f3efe6", "--blush": "#ff7a90" },
   color: { "--ink": "#1d1a1a", "--paper": "#ffffff", "--hair": "#2e211b", "--skin": "#f8dcc0", "--shirt": "#6fa8dc", "--pants": "#2f3a4d", "--accent": "#f29e4c", "--glass": "#1f3b73", "--blush": "#f59a9a" },
 };
+
+// ------------------------------------------------------------------ the buddy's memory of you
+
+export interface Memory {
+  firstMet: number;          // epoch ms
+  lastSeen: number;          // updated every minute while running
+  lastDay: string;           // YYYY-MM-DD of last session
+  daysTogether: number;      // distinct days we've spent together
+  lunchMin: number | null;   // learned usual lunch start (minutes after midnight)
+  lunchN: number;
+  mood: { v: number; e: number };   // valence -1..1, energy 0..1
+  dismissed: Record<string, number>; // suggestion key -> times you waved it away
+  muted: Record<string, true>;       // keys muted after 2 dismissals
+  songs: Record<string, number>;     // title -> plays (today)
+  songsDay: string;
+  done: Record<string, string>;      // once-per-day/once-ever events -> day fired
+  lastInteract: number;
+}
+
+export const MEMORY_DEFAULTS: Memory = {
+  firstMet: 0, lastSeen: 0, lastDay: "", daysTogether: 0, lunchMin: null, lunchN: 0,
+  mood: { v: 0.3, e: 0.8 }, dismissed: {}, muted: {}, songs: {}, songsDay: "", done: {}, lastInteract: 0,
+};
+
+export async function loadMemory(): Promise<Memory> {
+  const s = await store();
+  return merge(MEMORY_DEFAULTS, await s.get("memory"));
+}
+export async function saveMemory(m: Memory) {
+  const s = await store();
+  await s.set("memory", m);
+  await s.save();
+}

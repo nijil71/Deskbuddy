@@ -26,7 +26,8 @@ export function registerCore(b: Buddy) {
           if (fidget === "toe") { p.lR1 = -10 * k; p.lR2 = 30 * k + Math.max(0, Math.sin(fidgetT * 9)) * 10 * k; }
           if (fidget === "cross") { p.aL1 += (-60 - p.aL1) * k; p.aL2 += (-78 - p.aL2) * k; p.aR1 += (-50 - p.aR1) * k; p.aR2 += (-84 - p.aR2) * k; }
           if (fidget === "behind") { p.aL1 += (-20 - p.aL1) * k; p.aR1 += (-20 - p.aR1) * k; p.aL2 = 20 * k; p.aR2 = 20 * k; }
-          if (fidget === "scratch") { p.aR1 = 8 + 150 * k; p.aR2 = 6 + (110 + Math.sin(fidgetT * 20) * 12) * k; p.head = -6 * k; p.eyeMode = k > 0.5 ? "squint" : "normal"; }
+          // hand up beside the head (raised-arm pose), forearm jiggling = scratching
+          if (fidget === "scratch") { p.aR1 = 8 + 112 * k; p.aR2 = 6 + (22 + Math.sin(fidgetT * 20) * 10) * k; p.head = -6 * k; p.eyeMode = k > 0.5 ? "squint" : "normal"; }
           if (fidgetT > 3) fidget = "";
         }
       },
@@ -57,7 +58,7 @@ export function registerCore(b: Buddy) {
         if (Math.abs(d) < 3 * w.scale) return true;
         b.facing = Math.sign(d);
         const accel = Math.min(1, t * 4);
-        const step = Math.min(Math.abs(d), speed * w.scale * dt * accel);
+        const step = Math.min(Math.abs(d), speed * b.mood.pace * w.scale * dt * accel);
         w.fx += Math.sign(d) * step;
         phase += (step / w.scale / (a.run ? 26 : 18)) * Math.PI;
         gait(p, phase, a.run ? 1.6 : 1);
