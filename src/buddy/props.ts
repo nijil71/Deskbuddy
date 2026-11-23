@@ -21,6 +21,12 @@ export const HAND_PROPS: Record<string, Prop> = {
     <path d="M0 -20 q-12 -4 -22 0 v24 q10 -4 22 0z" ${P} ${S}/>
     <path d="M0 -20 q12 -4 22 0 v24 q-10 -4 -22 0z" ${P} ${S}/>
     <path d="M-17 -12 q7 -2 13 0 M-17 -6 q7 -2 13 0 M4 -12 q7 -2 13 0 M4 -6 q7 -2 13 0" fill="none" ${S} stroke-width="1.4"/>` },
+  newspaper: { upright: true, svg: `<g transform="translate(0,-4) scale(1.45,1.12)">
+    <path d="M-30 -40 l29 3 v42 l-29 -3z" ${P} ${S} stroke-width="2.4"/>
+    <path d="M30 -40 l-29 3 v42 l29 -3z" ${P} ${S} stroke-width="2.4"/>
+    <path d="M-26 -33 l21 2.2" ${S} stroke-width="3.6"/>
+    <path d="M-26 -25 l9 1 M-26 -20 l9 1 M-26 -15 l9 1 M-14 -24 l8 1 v9 l-8 -1z M-26 -9 l21 2.2 M-26 -4 l21 2.2" ${S} stroke-width="1.3"/>
+    <path d="M5 -36.5 l21 -2.2 M5 -30 l21 -2.2 M5 -25 l21 -2.2 M5 -20 l13 -1.4 M5 -12 l21 -2.2 M5 -7 l21 -2.2 M5 -2 l15 -1.6" ${S} stroke-width="1.3"/></g>` },
   pencil: { upright: false, svg: `
     <path d="M-2 0 l0 -2 l20 -8 l3 6 l-20 8z" ${A} ${S} stroke-width="2.2"/>
     <path d="M18 -10 l6 -2 l-3 6z" ${I}/>` },

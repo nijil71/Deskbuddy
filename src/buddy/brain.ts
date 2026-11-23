@@ -10,6 +10,8 @@ import { pick, rand } from "./pose";
 import { CX } from "./rig";
 import { Focus, chime, fmt } from "../services/focus";
 import { fetchWeather, weatherText, type Weather } from "../services/weather";
+import { fetchNews, pickStory, matches, hnThread, ago, type Story } from "../services/news";
+import { icon } from "../shared/icons";
 import { patchSettings, today, type Settings } from "../shared/settings";
 
 export interface Presence { idleMs: number; locked: boolean; fullscreen: boolean; inCall: boolean; keepalive: boolean; inHours: boolean; }
@@ -63,6 +65,9 @@ export class Brain {
   private remindAt: Record<string, number> = {};
   private snoozes: Record<string, number> = {};
   private fired = new Set<string>();
+  private newsAt = Date.now() - 25 * 60_000; // first look ~5 min after start
+  private newsList: Story[] = [];
+  private newsIdx = 0;
   private hiddenByFullscreen = false;
   private covered = false;
   private song = "";
@@ -451,6 +456,9 @@ export class Brain {
     if (h >= 18 && h < 19.5 && this.mem.once("evening")) { this.voice.auto("evening", "Wrapping up soon? 🌇"); return; }
     if ((h >= 23 || h < 3) && this.mem.once("late")) { this.voice.auto("late", "It's really late… bed soon? 🌙"); return; }
 
+    // Hacker News: every 30 min, maybe one big story (or one about your interests)
+    if (this.s.news.on && now - this.newsAt > 30 * 60_000) { this.newsAt = now; void this.checkNews(); return; }
+
     // chatter (frequency from settings; budget from mode)
     const every = { quiet: Infinity, normal: 12 * 60_000, chatty: 5 * 60_000 }[this.s.chatter];
     if (Number.isFinite(every) && this.cooldown("quip", every * rand(0.8, 1.4))) {
@@ -551,6 +559,53 @@ export class Brain {
     if (this.weather && Date.now() - this.weather.at < 25 * 60_000) return this.weather;
     this.weather = await fetchWeather(w.lat, w.lon, w.unit);
     return this.weather;
+  }
+
+  // ------------------------------------------------------------------ Hacker News
+
+  private storyHtml(st: Story, head: string) {
+    const e = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+    return `<div class="nw-h">${icon("news", "i ie")}<span>${e(head)}</span></div>`
+      + `<div class="nw-t">${e(st.title)}</div>`
+      + `<div class="nw-m">${icon("arrowUp", "i ie")}${st.score} · ${st.comments} comments · ${ago(st.time)}${st.domain ? " · " + e(st.domain) : ""}</div>`;
+  }
+  private storyButtons(st: Story) {
+    const open = (u: string) => () => { invoke("shell_open", { target: u }).catch(() => {}); this.b.mood.nudge(0.03); };
+    return [{ label: "Read", primary: true, fn: open(st.url) }, { label: "Comments", fn: open(hnThread(st.id)) }];
+  }
+
+  /** Background check: tell you about at most one story, within the bubble budget. */
+  async checkNews() {
+    let items: Story[];
+    try { items = await fetchNews(this.s.news.feed); } catch { return; }
+    const seen = this.mem.m.newsSeen;
+    for (const k in seen) if (Date.now() - seen[k] > 3 * 86_400_000) delete seen[k];
+    const st = pickStory(items, seen, this.s.news);
+    if (!st || !this.calm || this.focus.working || this.b.priority >= 1) return;
+    if (!this.voice.allow("news")) return; // over budget → try again next round
+    seen[st.id] = Date.now(); this.mem.save();
+    const kw = matches(st.title, this.s.news.keywords);
+    // the bubble pops exactly when he lowers the paper to tell you
+    this.b.play("news", { onPeek: () => this.voice.say("news", this.storyHtml(st, kw ? `About ${kw} on Hacker News` : "Big on Hacker News"),
+      { html: true, ms: 20_000, buttons: this.storyButtons(st) }) }, { force: true });
+  }
+
+  /** You asked: buddy reads the paper, then you can flip through stories in the bubble. */
+  async showNews() {
+    let peeked = false, loaded = false;
+    this.b.play("news", { onPeek: () => { peeked = true; if (loaded) this.browseNews(); } }, { force: true });
+    try { this.newsList = await fetchNews(this.s.news.feed); } catch { this.newsList = []; }
+    if (!this.newsList.length) { this.ui.say("Couldn't reach Hacker News 😕", { ms: 3000 }); return; }
+    this.newsIdx = 0; loaded = true;
+    if (peeked || this.b.actionName !== "news") this.browseNews(); // slow network, or he got interrupted
+  }
+  private browseNews() {
+    const n = this.newsList.length;
+    const st = this.newsList[this.newsIdx % n];
+    this.mem.m.newsSeen[st.id] = Date.now();
+    const feed = { top: "Top", best: "Best", show: "Show HN", ask: "Ask HN", new: "Newest" }[this.s.news.feed];
+    const next = { label: "Next ›", fn: () => { this.newsIdx++; this.b.pose.pupilX = 0.8; this.browseNews(); } };
+    this.ui.say(this.storyHtml(st, `${feed} on HN · ${(this.newsIdx % n) + 1}/${n}`), { html: true, ms: 45_000, buttons: [...this.storyButtons(st), next] });
   }
 
   async showWeather() {

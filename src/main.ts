@@ -170,6 +170,7 @@ function openMenu() {
     f.running
       ? { label: "Stop focus", icon: "stop", fn: () => f.cmd("stop") }
       : { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
+    { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
     { label: "Note", icon: "note", fn: panel("notes") },
     { label: "Clipboard", icon: "clipboard", fn: panel("clipboard") },
     { label: "Launcher", icon: "rocket", fn: panel("launcher") },
@@ -181,6 +182,7 @@ function openMenu() {
           .catch(oops("open the snipping tool")),
       }, { force: true }),
     },
+    { label: "Surprise!", icon: "dice", fn: () => buddy.play(["juggle", "music", "magic", "celebrate", "yoyo", "doodle", "news"][(Math.random() * 7) | 0], undefined, { force: true }) },
     { label: "", icon: "", fn: () => {}, sep: true },
     {
       label: keepOn ? "Keep-alive on" : "Keep-alive off", icon: keepOn ? "dot" : "ring",
@@ -196,11 +198,9 @@ function openMenu() {
     voice.shushed
       ? { label: "Un-shh", icon: "volume", fn: () => brain.unshh() }
       : { label: "Shh 1 hour", icon: "mute", fn: () => brain.shh(60) },
-    { label: "Surprise!", icon: "dice", fn: () => buddy.play(["juggle", "music", "magic", "celebrate", "yoyo", "doodle"][(Math.random() * 6) | 0], undefined, { force: true }) },
     { label: buddy.actionName === "sleep" ? "Wake up" : "Nap", icon: "moon", fn: () => buddy.actionName === "sleep" ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
     { label: "Settings", icon: "gear", fn: panel("settings") },
     { label: "Hide", icon: "eyeOff", fn: () => invoke("set_buddy_visible", { visible: false }).catch(oops("hide")) },
-    { label: "Lab", icon: "film", fn: panel("lab") },
   ]);
   setTimeout(() => { if (ui.menuOpen) ui.closeMenu(); }, 9000);
 }
@@ -277,6 +277,7 @@ async function boot() {
     const { action, args } = e.payload;
     if (action === "__say") return ui.say(args, { ms: 3000 });
     if (action === "__weather") return brain.showWeather();
+    if (action === "__news") return brain.showNews();
     if (action === "__remind") return brain.remind(args);
     if (action === "__throw") { buddy.world.launch(-900 * buddy.world.scale, -1400 * buddy.world.scale); buddy.play("airborne", undefined, { force: true }); return; }
     if (action === "__nudge") return brain.onNudgeRequest();

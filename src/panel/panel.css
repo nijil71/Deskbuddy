@@ -186,3 +186,21 @@ kbd .i { width: 11px; height: 11px; vertical-align: -1.5px; }
 nav button span { display: flex; height: 20px; align-items: center; filter: none; }
 nav button em { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 nav { gap: 2px; padding: 0 8px 8px; } nav button { padding: 6px 0; }
+
+/* ---- news ---- */
+.news-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 6px; }
+.stories { list-style: none; margin: 0; padding: 0; }
+.stories > li.muted { padding: 18px 4px; text-align: center; }
+.story { display: flex; gap: 10px; padding: 9px 4px; border-bottom: 1.5px solid var(--soft); }
+.story .rank { flex: none; width: 20px; text-align: right; font-weight: 800; color: var(--muted); font-size: 12px; padding-top: 1px; }
+.story a { cursor: pointer; }
+.story > .grow > a { font-weight: 700; font-size: 13px; line-height: 1.3; color: var(--ink); }
+.story > .grow > a:hover { text-decoration: underline; text-decoration-thickness: 2px; }
+.story .dom { color: var(--muted); font-size: 10.5px; }
+.story .meta { margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: 600; }
+.story .meta a { color: var(--muted); }
+.story .meta a:hover { color: var(--ink); }
+.story .meta .i { width: 11px; height: 11px; vertical-align: -1.5px; margin-right: 2px; }
+.story.hot { background: color-mix(in srgb, #ff6600 9%, transparent); border-radius: 10px; }
+.story .tag { color: #ff6600; }
+input.full { width: 100%; box-sizing: border-box; margin-top: 4px; }

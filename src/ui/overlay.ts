@@ -18,6 +18,7 @@ export class Overlay {
   private queue: Queued[] = [];
   private sticky = false;
   private pos = { x: -1, y: -1 };
+  private bh = 0; // bubble height, so tall bubbles slide down instead of leaving the window
   menuOpen = false;
   currentKey = "";   // suggestion key of the visible bubble ("" = you asked for it)
   quiet = false; // DND: suppress non-essential bubbles
@@ -65,6 +66,7 @@ export class Overlay {
     this.bubble.classList.remove("show");
     void this.bubble.offsetWidth; // restart pop animation
     this.bubble.classList.add("show");
+    this.bh = this.bubble.offsetHeight;
     this.pos = { x: -1, y: -1 };
     this.place();
     const ms = opts.ms ?? (opts.buttons ? 0 : Math.min(7000, 1800 + text.length * 55));
@@ -86,7 +88,7 @@ export class Overlay {
     const p = this.b.pose;
     const headTop = HIP_Y + p.y + NECK + FACE - 128;
     const x = Math.round(Math.min(W - 12, Math.max(12, CX + p.x)));
-    const y = Math.round(Math.max(4, headTop));
+    const y = Math.round(Math.max(4 + (this.bubbleVisible ? this.bh + 4 : 0), headTop));
     if (x === this.pos.x && y === this.pos.y) return;
     this.pos = { x, y };
     this.bubble.style.setProperty("--x", `${x}px`);

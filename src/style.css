@@ -121,3 +121,11 @@ html, body {
 .bubble .ie { width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin: 0 .05em; }
 .bubble button .i { width: 12px; height: 12px; vertical-align: -2px; }
 .bubble .ie-dot { color: #46a758; width: .8em; height: .8em; vertical-align: -0.05em; }
+
+/* ---- news card in the bubble ---- */
+.nw-h { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; color: #ff6600; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
+.nw-h .ie { width: 13px; height: 13px; margin: 0; }
+.nw-t { font-weight: 700; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.nw-m { margin-top: 3px; font-size: 10.5px; font-weight: 600; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nw-m .ie { width: 10px; height: 10px; vertical-align: -1px; margin: 0 1px 0 0; }
+.bubble:has(.nw-t) { min-width: 210px; }

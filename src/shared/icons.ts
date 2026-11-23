@@ -88,6 +88,9 @@ const P: Record<string, string> = {
   zzz: '<path d="M4 9h5l-5 6h5M13 5h4l-4 5h4M17 14h3l-3 4h3"/>',
   cat: '<path d="M5 20V8l3 3h8l3-3v12z"/><path d="M9 15v.5M15 15v.5M11 17.5h2"/>',
   minimize: '<path d="M5 12h14"/>',
+  news: '<path d="M4 5h13v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v10a2 2 0 0 1-4 0M7 9h7M7 13h7M7 17h4"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
 };
 
 /** Inline SVG for an icon name (unknown → empty). */
@@ -104,7 +107,7 @@ const EMOJI: Record<string, string> = {
   "⚡": "zap", "🌇": "sunset", "🌙": "moon", "🤔": "bulb", "📅": "calendar", "🎂": "cake", "🍜": "coffee", "✓": "check",
   "🥵": "thermo", "📦": "box", "🌧": "rain", "❄": "snow", "☀": "sun", "⛈": "storm", "💪": "muscle", "😤": "faceMeh",
   "😅": "faceSmile", "🔁": "repeat", "🎵": "music", "🎬": "film", "👍": "thumbsUp", "🐱": "cat", "✨": "sparkles",
-  "🔌": "plug", "✏": "pencil", "😴": "faceSleep", "💤": "zzz", "🙂": "faceSmile",
+  "🔌": "plug", "✏": "pencil", "😴": "faceSleep", "💤": "zzz", "🙂": "faceSmile", "📰": "news", "🔥": "zap",
 };
 const EMOJI_RE = /\s?(\p{Extended_Pictographic}|✓)️?(‍\p{Extended_Pictographic}️?)*/gu;
 

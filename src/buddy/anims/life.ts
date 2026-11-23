@@ -124,6 +124,23 @@ export function registerLife(b: Buddy) {
     },
   }));
 
+  // Hacker News: opens the paper, reads, then lowers it and peeks at you with the scoop.
+  b.register("news", (a?: { dur?: number; sitting?: boolean; onPeek?: () => void }): Action => ({
+    name: "news", dur: a?.dur ?? 6.5, fps: "idle", priority: 1, noLook: true, blend: 0.35,
+    update(b, t, dt, p) {
+      if (a?.sitting) sit(p, t, 0.4);
+      const peek = easeInOut(seg(t, 2.0, 2.5)) * (1 - easeInOut(seg(t, 4.6, 5.1))); // lowers the paper to talk
+      holdFront(p, 1 - peek * 0.28);
+      p.propR = "newspaper";
+      p.head = 5 - peek * 7;
+      p.lookY = 0.45 * (1 - peek); p.pupilY = 0.85 * (1 - peek);
+      p.pupilX = peek > 0.5 ? 0 : Math.sin(t * 2.1) * 0.75;   // eyes scan the columns
+      p.eyes = peek > 0.5 ? 1.1 : 1;
+      p.mouth = peek > 0.5 ? "open" : "o";
+      if (t > 2.0 && t - dt <= 2.0) { b.fx.burst("spark", CX + 30, GROUND - 150, 3, 70); a?.onPeek?.(); }
+    },
+  }));
+
   b.register("juggle", (): Action => {
     let g: SVGGElement | null = null;
     const balls: SVGElement[] = [];

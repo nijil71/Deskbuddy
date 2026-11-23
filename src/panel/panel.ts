@@ -9,6 +9,7 @@ import {
   type Settings, type Note,
 } from "../shared/settings";
 import { geocode } from "../services/weather";
+import { fetchNews, matches, hnThread, ago, type Feed, type Story } from "../services/news";
 import { icon } from "../shared/icons";
 import type { FocusState } from "../services/focus";
 
@@ -23,7 +24,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") win.close(
 document.addEventListener("contextmenu", (e) => { if (!(e.target as HTMLElement).closest("input,textarea")) e.preventDefault(); });
 
 const TABS = [
-  ["focus", "headphones", "Focus"], ["reminders", "clock", "Reminders"], ["notes", "note", "Notes"],
+  ["focus", "headphones", "Focus"], ["reminders", "clock", "Reminders"], ["notes", "note", "Notes"], ["news", "news", "News"],
   ["clipboard", "clipboard", "Clipboard"], ["launcher", "rocket", "Launcher"], ["settings", "gear", "Settings"], ["lab", "film", "Lab"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -58,7 +59,7 @@ function show(tab: Tab) {
   cleanup.forEach((f) => f()); cleanup = [];
   renderTabs();
   view.classList.remove("enter"); void view.offsetWidth; view.classList.add("enter");
-  ({ focus, reminders, notes, clipboard, launcher, settings, lab: labTab } as Record<Tab, () => void>)[current]();
+  ({ focus, reminders, notes, news, clipboard, launcher, settings, lab: labTab } as Record<Tab, () => void>)[current]();
 }
 
 // ------------------------------------------------------------------ Focus
@@ -237,6 +238,58 @@ async function clipboard() {
   $<HTMLInputElement>("#cq").focus();
   listen("clipboard", () => draw()).then((u) => cleanup.push(u));
   draw();
+}
+
+// ------------------------------------------------------------------ News (Hacker News)
+
+function news() {
+  const N = S.news;
+  const FEEDS: [Feed, string][] = [["top", "Top"], ["best", "Best"], ["new", "New"], ["show", "Show"], ["ask", "Ask"]];
+  const open = (u: string) => invoke("shell_open", { target: u }).catch(() => toast("Couldn't open that"));
+  view.innerHTML = `
+    <div class="news-bar">
+      <span class="seg">${FEEDS.map(([f, l]) => `<button class="segb ${N.feed === f ? "on" : ""}" data-feed="${f}">${l}</button>`).join("")}</span>
+      <button class="mini" id="nrf" title="Refresh">${icon("refresh")}</button>
+    </div>
+    <ol class="stories" id="stories"><li class="muted">Loading Hacker News…</li></ol>
+    <section class="card">
+      <h3>${icon("news")} Buddy news alerts</h3>
+      <div class="setting"><span class="grow">Tell me about big stories<small>At most one every 30 min, only within your mode's bubble budget.</small></span><label class="switch"><input type="checkbox" id="non" ${N.on ? "checked" : ""}><i></i></label></div>
+      <div class="setting"><span class="grow">"Big" means at least</span>
+        <select id="nms">${[100, 200, 300, 400, 600, 1000].map((v) => `<option value="${v}" ${N.minScore === v ? "selected" : ""}>${v} points</option>`).join("")}</select></div>
+      <div class="setting"><span class="grow">My interests<small>Stories mentioning these get through sooner (from ~60 points). Comma separated.</small></span></div>
+      <input id="nkw" class="full" placeholder="e.g. rust, tauri, claude, windows" value="${esc(N.keywords.join(", "))}">
+    </section>`;
+  const list = $("#stories");
+  const load = async (fresh = false) => {
+    list.innerHTML = `<li class="muted">Loading Hacker News…</li>`;
+    let items: Story[] = [];
+    try { items = await fetchNews(S.news.feed, 30, fresh); } catch { /* offline */ }
+    if (!items.length) { list.innerHTML = `<li class="muted">Couldn't reach Hacker News. Check your connection and hit refresh.</li>`; return; }
+    list.innerHTML = items.map((st, i) => {
+      const kw = matches(st.title, S.news.keywords);
+      return `<li class="story ${kw ? "hot" : ""}">
+        <span class="rank">${i + 1}</span>
+        <div class="grow">
+          <a data-u="${esc(st.url)}">${esc(st.title)}</a>${st.domain ? ` <small class="dom">${esc(st.domain)}</small>` : ""}
+          <div class="meta">${icon("arrowUp")}${st.score} · <a data-u="${esc(hnThread(st.id))}">${icon("chat")}${st.comments}</a> · ${ago(st.time)} · ${esc(st.by)}${kw ? ` · <b class="tag">${esc(kw)}</b>` : ""}</div>
+        </div></li>`;
+    }).join("");
+    list.querySelectorAll<HTMLElement>("[data-u]").forEach((a) => (a.onclick = () => open(a.dataset.u!)));
+  };
+  $$("[data-feed]").forEach((b) => (b.onclick = () => {
+    S.news.feed = b.dataset.feed as Feed; save();
+    $$("[data-feed]").forEach((x) => x.classList.toggle("on", x === b));
+    load();
+  }));
+  $("#nrf").onclick = () => load(true);
+  $<HTMLInputElement>("#non").onchange = (e) => { S.news.on = (e.target as HTMLInputElement).checked; save(); };
+  $<HTMLSelectElement>("#nms").onchange = (e) => { S.news.minScore = +(e.target as HTMLSelectElement).value; save(); };
+  $<HTMLInputElement>("#nkw").onchange = (e) => {
+    S.news.keywords = (e.target as HTMLInputElement).value.split(",").map((k) => k.trim()).filter(Boolean).slice(0, 20);
+    save(); load(); toast("Interests saved");
+  };
+  load();
 }
 
 // ------------------------------------------------------------------ Launcher
@@ -445,7 +498,7 @@ function labTab() {
   const groups: [string, [string, string, string, unknown?][]][] = [
     ["Moves", [["walk", "walk", "Walk"], ["__throw", "throw", "Throw"], ["__climb", "mountain", "Climb window"], ["peek", "eye", "Peek"], ["turn", "turn", "Turn"], ["lookAround", "search", "Look around"], ["dizzy", "star", "Dizzy"]]],
     ["Feelings", [["wave", "hand", "Wave", { text: "Hello!" }], ["celebrate", "party", "Celebrate", { text: "Woohoo!", hat: true }], ["pet", "heart", "Pet"], ["poke", "pointer", "Poke"], ["yawn", "moon", "Yawn"], ["stretch", "stretch", "Stretch"], ["sleep", "zzz", "Sleep", { sitting: true }], ["wakeUp", "clock", "Wake"], ["shh", "mute", "Shh"], ["think", "bulb", "Think"]]],
-    ["Hobbies", [["read", "book", "Read"], ["juggle", "juggle", "Juggle"], ["music", "headphones", "Music"], ["doodle", "pencil", "Doodle"], ["yoyo", "yoyo", "Yo-yo"], ["coffee", "coffee", "Coffee"], ["magic", "wand", "Magic"], ["holdPhone", "phone", "Phone", { text: "Scrolling…" }]]],
+    ["Hobbies", [["read", "book", "Read"], ["juggle", "juggle", "Juggle"], ["music", "headphones", "Music"], ["doodle", "pencil", "Doodle"], ["yoyo", "yoyo", "Yo-yo"], ["coffee", "coffee", "Coffee"], ["magic", "wand", "Magic"], ["news", "news", "Newspaper"], ["__news", "news", "HN headlines"], ["holdPhone", "phone", "Phone", { text: "Scrolling…" }]]],
     ["Work", [["__nudge", "dot", "Keep-alive nudge"], ["focus", "laptop", "Focus"], ["breakTime", "leaf", "Break"], ["drink", "droplet", "Water"], ["eyeBreak", "glasses", "Eye break", { secs: 6 }], ["posture", "chair", "Posture"], ["holdSign", "sign", "Sign", { text: "Standup!" }], ["holdNote", "note", "Note", { text: "Buy milk" }]]],
     ["System", [["sweaty", "thermo", "High CPU", { cpu: 93 }], ["heavyBox", "box", "High RAM", { mem: 94 }], ["lowBattery", "batteryLow", "Low battery", { pct: 12 }], ["charging", "charging", "Charging"], ["camera", "camera", "Camera"], ["catchPaper", "paper", "Clipboard", { text: "copied text" }], ["__weather", "cloud", "Weather"], ["weather", "rain", "Rain", { kind: "rain", text: "Rainy!" }], ["weather", "snow", "Snow", { kind: "snow", text: "Snow!" }], ["weather", "sun", "Sunny", { kind: "sun", text: "Sunny!" }]]],
   ];

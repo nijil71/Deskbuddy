@@ -1,4 +1,5 @@
 // Settings shared by the buddy window and the panel window (tauri-plugin-store).
+import type { NewsCfg } from "../services/news";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { emit, listen } from "@tauri-apps/api/event";
 
@@ -36,6 +37,8 @@ export interface Settings {
   reminders: { water: Reminder; stretch: Reminder; eyes: Reminder; posture: Reminder };
   focus: { work: number; short: number; long: number; rounds: number };
   weather: { city: string; lat: number | null; lon: number | null; unit: "c" | "f" };
+  /** Hacker News: buddy mentions big stories (or ones matching your keywords) */
+  news: NewsCfg;
   launcher: LaunchItem[];
   meetings: Meeting[];
   autostart: boolean;
@@ -66,6 +69,7 @@ export const DEFAULTS: Settings = {
   },
   focus: { work: 25, short: 5, long: 15, rounds: 4 },
   weather: { city: "", lat: null, lon: null, unit: "c" },
+  news: { on: true, feed: "top", minScore: 400, keywords: [] },
   launcher: [
     { name: "Microsoft Teams", target: "msteams:" },
     { name: "Notepad", target: "notepad.exe" },
@@ -155,11 +159,12 @@ export interface Memory {
   songsDay: string;
   done: Record<string, string>;      // once-per-day/once-ever events -> day fired
   lastInteract: number;
+  newsSeen: Record<string, number>; // HN story id -> when the buddy told you about it
 }
 
 export const MEMORY_DEFAULTS: Memory = {
   firstMet: 0, lastSeen: 0, lastDay: "", daysTogether: 0, lunchMin: null, lunchN: 0,
-  mood: { v: 0.3, e: 0.8 }, dismissed: {}, muted: {}, songs: {}, songsDay: "", done: {}, lastInteract: 0,
+  mood: { v: 0.3, e: 0.8 }, dismissed: {}, muted: {}, songs: {}, songsDay: "", done: {}, lastInteract: 0, newsSeen: {},
 };
 
 export async function loadMemory(): Promise<Memory> {
