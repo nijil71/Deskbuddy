@@ -25,7 +25,7 @@ export function registerLife(b: Buddy) {
       if (a?.cap) p.hat = "nightcap";
       if (every(t, dt, 1.6, 0.8)) {
         const hc = b.headPos();
-        b.fx.emit("z", hc.x + 40, hc.y - 50, { vx: 14, vy: -22, life: 2.4, s: 0.5, s1: 1.3, wob: 18 });
+        b.fx.emit("z", hc.x + 62, hc.y - 104, { vx: 14, vy: -22, life: 2.4, s: 0.5, s1: 1.3, wob: 18 });
       }
     },
   }));
@@ -54,7 +54,7 @@ export function registerLife(b: Buddy) {
       p.mouth = k > 0.3 ? "yawn" : "o"; p.eyeMode = k > 0.3 ? "closed" : "normal";
       p.head = -8 * k; p.sy = 1 + 0.03 * k;
       handToMouth(p, "R", k);
-      p.aL1 = 8 + 60 * k; p.aL2 = 40 * k;
+      p.aL1 = 8 + 112 * k; p.aL2 = 6 + 26 * k;
       if (t > 2.2 && t < 2.25) b.fx.emit("drop", b.headPos().x - 30, b.headPos().y + 10, { vy: 10, g: 100, life: 0.8 });
     },
   }));
@@ -81,7 +81,7 @@ export function registerLife(b: Buddy) {
     update(_b, t, _dt, p) {
       const k = easeOutBack(seg(t, 0, 0.3)) * (1 - easeInOut(seg(t, 1.9, 2.2)));
       wave(p, t);
-      p.aR1 = 8 + (150 - 8) * k;
+      p.aR1 = 8 + (116 - 8) * k;
       p.mouth = "grin"; p.eyeMode = "happy"; p.head = 8 * k; p.blush = 0.3 * k;
       p.y = -bump(seg(t, 0, 0.35)) * 6;
     },
@@ -100,7 +100,7 @@ export function registerLife(b: Buddy) {
       p.y = -h * 34;
       p.sy = 1 + (h > 0.1 ? 0.08 : -0.08 * (1 - h)); p.sx = 2 - p.sy;
       armsUp(p, 1, 30 - h * 20);
-      p.aL2 = 10 + Math.sin(t * 20) * 10; p.aR2 = 10 + Math.sin(t * 20 + 1) * 10;
+      p.aL2 = 30 + Math.sin(t * 20) * 12; p.aR2 = 30 + Math.sin(t * 20 + 1) * 12;
       p.lL2 = h * 40; p.lR2 = h * 40; p.lL1 = h * 10; p.lR1 = -h * 10;
       p.mouth = "grin"; p.eyeMode = "happy"; p.blush = 0.5;
       if (a?.hat) p.hat = "party";
@@ -197,7 +197,7 @@ export function registerLife(b: Buddy) {
         p.mouth = t % 3 < 1.5 ? "tongue" : "o";
       } else {
         const k = easeOutBack(seg(t, 7.4, 7.8));
-        p.aL1 = -40 + 170 * k; p.aL2 = -66 + 60 * k; p.aR1 = 10; p.aR2 = 10;
+        p.aL1 = -40 + 118 * k; p.aL2 = -66 + 130 * k; p.aR1 = 10; p.aR2 = 10;
         p.mouth = "grin"; p.eyeMode = "happy"; p.blush = 0.4;
       }
     },

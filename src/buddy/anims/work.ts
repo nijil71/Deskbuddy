@@ -67,7 +67,7 @@ export function registerWork(b: Buddy) {
         const k = st / 1.6;
         const clap = Math.abs(Math.sin(st * 18)) * (1 - seg(k, 0.5, 0.6));
         p.aL1 = -40 + clap * 10; p.aR1 = -40 + clap * 10; p.aL2 = -50; p.aR2 = -50;
-        if (k > 0.6) { p.aR1 = 120; p.aR2 = 70; p.aL1 = 8; p.aL2 = 6; }
+        if (k > 0.6) { p.aR1 = 78; p.aR2 = 74; p.aL1 = 8; p.aL2 = 6; }
         p.eyeMode = "happy"; p.mouth = "smile";
         if (st < dt * 1.5) { b.fx.burst("dust", CX, GROUND - 60, 4, 40); b.say?.("Still green ✓", { ms: 1800 }); }
         if (k >= 1) return true;
@@ -140,9 +140,9 @@ export function registerWork(b: Buddy) {
     enter(b) { b.say?.("Posture check! Sit tall 🪑", { ms: 3600 }); },
     update(_b, t, _dt, p) {
       const slouch = 1 - easeOutBack(seg(t, 0.8, 1.4));
-      p.torso = 12 * slouch; p.head = 14 * slouch; p.sy = 1 - 0.06 * slouch;
+      p.torso = 7 * slouch; p.head = 9 * slouch; p.sy = 1 - 0.06 * slouch; p.hipY = 3 * slouch;
       p.eyeMode = slouch > 0.5 ? "sad" : "happy"; p.mouth = slouch > 0.5 ? "frown" : "smile";
-      if (slouch < 0.5) { p.sy = 1.04; p.aR1 = 120; p.aR2 = 70; }
+      if (slouch < 0.5) { p.sy = 1.04; p.aR1 = 78; p.aR2 = 74; }
     },
   }));
 
@@ -165,7 +165,7 @@ export function registerWork(b: Buddy) {
     update(_b, t, _dt, p) {
       p.propR = "paper";
       const k = easeOutBack(seg(t, 0, 0.5));
-      p.aR1 = 8 + 120 * k; p.aR2 = 6 + 40 * k;
+      p.aR1 = 8 + 70 * k; p.aR2 = 6 + 64 * k;
       p.mouth = "smile"; p.head = 6;
     },
   }));
@@ -176,7 +176,7 @@ export function registerWork(b: Buddy) {
     enter(b) { b.say?.(`Phew, CPU at ${Math.round(a?.cpu ?? 90)}%… 🥵`, { ms: 3200 }); },
     update(b, t, dt, p) {
       p.propR = "fan";
-      p.aR1 = 100 + Math.sin(t * 16) * 18; p.aR2 = 70;
+      p.aR1 = 70 + Math.sin(t * 16) * 10; p.aR2 = 80;
       p.mouth = "open"; p.eyeMode = "squint"; p.head = -4;
       p.sy = 1 + Math.sin(t * 9) * 0.01;
       if (every(t, dt, 0.45)) b.fx.emit("sweat", CX + rand(-56, 56), rand(150, 200), { vy: 20, g: 200, life: 0.9 });
@@ -201,7 +201,7 @@ export function registerWork(b: Buddy) {
     enter(b) { b.say?.(`Battery ${a?.pct ?? 15}%… plug me in? 🔌`, { ms: 4000 }); },
     update(_b, t, _dt, p) {
       const k = easeInOut(seg(t, 0, 1));
-      p.torso = 10 * k; p.head = 18 * k; p.sy = 1 - 0.07 * k;
+      p.torso = 6 * k; p.head = 11 * k; p.sy = 1 - 0.07 * k; p.hipY = 3 * k;
       p.aL1 = 2; p.aR1 = 2; p.aL2 = 0; p.aR2 = 0;
       p.eyes = 0.45; p.mouth = "frown"; p.glassesY = 4 * k;
       if (t > 2.5) { p.propR = "plug"; p.aR1 = 60; p.aR2 = 50; p.head = 6; p.eyes = 0.7; }
@@ -260,7 +260,7 @@ export function registerWork(b: Buddy) {
         }
         p.eyeMode = t < 0.7 ? "wide" : "happy";
         p.pupilX = from * (1 - k);
-        if (t > 0.6) { p.propR = "paper"; p.aR1 = 8 + 100 * easeOutBack(seg(t, 0.6, 0.9)); p.aR2 = 40; p.mouth = "smile"; }
+        if (t > 0.6) { p.propR = "paper"; p.aR1 = 8 + 68 * easeOutBack(seg(t, 0.6, 0.9)); p.aR2 = 60; p.mouth = "smile"; }
         else { p.aR1 = 60; p.aR2 = 30; p.mouth = "o"; }
         if (t > 0.7 && t < 0.75 && a?.text) b.say?.(`📋 ${a.text}`, { ms: 1800 });
       },
@@ -273,13 +273,13 @@ export function registerWork(b: Buddy) {
     enter(b) { b.say?.(a.text, { ms: 5000 }); },
     update(b, t, dt, p) {
       if (a.kind === "rain" || a.kind === "storm") {
-        p.propR = "umbrella"; p.aR1 = 30; p.aR2 = -60; p.mouth = "flat";
+        p.propR = "umbrella"; p.aR1 = 34; p.aR2 = -10; p.mouth = "flat"; p.lookY = -0.3; p.pupilY = -0.7;
         if (every(t, dt, 0.08)) b.fx.emit("drop", CX + rand(-120, 120), 40, { vy: 280, life: 0.5 });
       } else if (a.kind === "snow") {
         p.mouth = "o"; p.eyeMode = "happy"; p.rot = Math.sin(t * 20) * 1.2; // shiver
         if (every(t, dt, 0.18)) b.fx.emit("flake", CX + rand(-120, 120), 40, { vy: 50, life: 3, wob: 30, vr: 90 });
       } else if (a.kind === "sun") {
-        p.hat = "sunglasses"; p.aR1 = 130; p.aR2 = 70; p.mouth = "grin"; p.head = 6;
+        p.hat = "sunglasses"; p.aR1 = 78; p.aR2 = 74; p.mouth = "grin"; p.head = 6;
       } else { p.pupilY = -1; p.lookY = -0.4; p.mouth = "o"; }
     },
   }));
@@ -288,7 +288,7 @@ export function registerWork(b: Buddy) {
     name: "magic", dur: 2.6, fps: "high", priority: 2,
     update(b, t, dt, p) {
       p.propR = "wand";
-      p.aR1 = 100 + Math.sin(t * 8) * 40; p.aR2 = 30;
+      p.aR1 = 72 + Math.sin(t * 8) * 22; p.aR2 = 50;
       p.eyeMode = "happy"; p.mouth = "grin";
       if (every(t, dt, 0.12)) b.fx.emit("star", CX + 60 + rand(-20, 20), 180 + rand(-30, 30), { vx: rand(-50, 50), vy: rand(-60, 0), life: 0.8, vr: 300, s: 0.6 });
     },

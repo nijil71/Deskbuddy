@@ -66,7 +66,7 @@ const MOUTHS: Record<Mouth, string> = {
 
 // ------------------------------------------------------------------ the rig
 
-interface Limb { path: SVGElement; hand: SVGElement; prop: SVGElement; propId: string; ox: number; oy: number; l1: number; l2: number; }
+interface Limb { path: SVGElement; hand: SVGElement; prop: SVGElement; propId: string; ox: number; oy: number; l1: number; l2: number; back: boolean; }
 
 export class Rig {
   svg: SVGSVGElement;
@@ -92,6 +92,8 @@ export class Rig {
   private tufts: SVGElement[] = [];
   private legs: { path: SVGElement; foot: SVGElement; ox: number }[] = [];
   private arms: Limb[] = [];
+  private armBack!: SVGElement;   // raised arms go behind the head
+  private armFront!: SVGElement;
   private boilers: { el: SVGElement; d: string[] }[] = [];
   private boilI = 0;
   private cur = { eye: "", mouth: "", hat: "", scene: "", sceneText: "" };
@@ -132,6 +134,7 @@ export class Rig {
     this.sceneG = el("g", { class: "scene" }, this.torso);
 
     // head
+    this.armBack = el("g", {}, this.torso);
     this.head = el("g", {}, this.torso);
     const face = el("g", { transform: `translate(0,${FACE})` }, this.head);
     this.earL = el("g", {}, face);
@@ -214,12 +217,13 @@ export class Rig {
     this.hatG = el("g", {}, face);
 
     // arms last: in front of torso AND head, so hands can reach the face
+    this.armFront = el("g", {}, this.torso);
     for (const ox of [-15, 15]) {
-      const path = el("path", { class: "arm" }, this.torso);
-      const hand = el("g", {}, this.torso);
+      const path = el("path", { class: "arm" }, this.armFront);
+      const hand = el("g", {}, this.armFront);
       el("circle", { r: 5.6, class: "hand" }, hand);
       const prop = el("g", {}, hand);
-      this.arms.push({ path, hand, prop, propId: "", ox, oy: -36, l1: 16, l2: 15 });
+      this.arms.push({ path, hand, prop, propId: "", ox, oy: -36, l1: 16, l2: 15, back: false });
     }
 
   }
@@ -251,7 +255,9 @@ export class Rig {
   render(p: Pose, dt: number) {
     const f = (n: number) => Math.round(n * 100) / 100;
     // root: lean/squash around the feet
-    const face = Math.abs(p.face) < 0.04 ? 0.04 * Math.sign(p.face || 1) : p.face;
+    // Front-facing character: never collapse to a sliver when turning. Snap the mirror at
+    // zero and squash slightly (0.86..1) so a turn reads as a quick spin.
+    const face = (p.face < 0 ? -1 : 1) * (0.86 + 0.14 * Math.abs(p.face));
     this.root.setAttribute(
       "transform",
       `translate(${f(CX + p.x)},${f(GROUND + p.y)}) rotate(${f(p.rot)}) scale(${f(p.sx * face)},${f(p.sy)}) translate(${-CX},${-GROUND})`,
@@ -283,8 +289,33 @@ export class Rig {
       const [a1, a2, side] = armAng[i];
       const t1 = (-side * a1 * Math.PI) / 180, t2 = t1 + (-side * a2 * Math.PI) / 180;
       const sx = A.ox, sy = A.oy;
-      const ex = sx - Math.sin(t1) * A.l1, ey = sy + Math.cos(t1) * A.l1;
-      const hx = ex - Math.sin(t2) * A.l2, hy = ey + Math.cos(t2) * A.l2;
+      let ex = sx - Math.sin(t1) * A.l1, ey = sy + Math.cos(t1) * A.l1;
+      let hx = ex - Math.sin(t2) * A.l2, hy = ey + Math.cos(t2) * A.l2;
+      // Chibi arms are far too short to get past the big head, so raised arms blend into a
+      // rubber-hose "banzai": elbow out wide, hand popping up beside the hair. The forearm
+      // angle (a2) and shoulder angle (a1) still swing the hand, so waves/flails read.
+      const r0 = Math.max(0, Math.min(1, (a1 - 80) / 35));
+      const raise = r0 * r0 * (3 - 2 * r0);
+      if (raise > 0) {
+        const phi = ((22 + (a2 - 34) + (a1 - 118) * 0.5) * Math.PI) / 180;
+        // banzai targets live in head space, so a tilted head never swallows the hands
+        const hr = (p.head * Math.PI) / 180, hc = Math.cos(hr), hs = Math.sin(hr);
+        const toBody = (x: number, y: number): [number, number] => {
+          const dy = y - NECK;
+          return [x * hc - dy * hs + p.headX, NECK + x * hs + dy * hc + p.headY];
+        };
+        const [bex, bey] = toBody(side * 76, -74);
+        const [bhx, bhy] = toBody(side * (76 + Math.sin(phi) * 54), -74 - Math.cos(phi) * 54);
+        ex += (bex - ex) * raise; ey += (bey - ey) * raise;
+        hx += (bhx - hx) * raise; hy += (bhy - hy) * raise;
+      }
+      const back = raise > 0.5; // tuck behind the head so the arm doesn't cross the face
+      if (back !== A.back) {
+        A.back = back;
+        const parent = back ? this.armBack : this.armFront;
+        parent.appendChild(A.path);
+        parent.appendChild(A.hand);
+      }
       const cx = ex + (ex - (sx + hx) / 2) * 0.5, cy = ey + (ey - (sy + hy) / 2) * 0.5;
       A.path.setAttribute("d", `M${f(sx)} ${f(sy)}Q${f(cx)} ${f(cy)} ${f(hx)} ${f(hy)}`);
       A.hand.setAttribute("transform", `translate(${f(hx)},${f(hy)})`);

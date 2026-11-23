@@ -43,20 +43,24 @@ export function holdFront(p: Pose, k = 1) {
 
 /** Hands at chest-height to the sides holding a sign. */
 export function holdSign(p: Pose, bob = 0) {
-  p.aL1 = 52 + bob; p.aL2 = -86;
-  p.aR1 = 52 + bob; p.aR2 = -86;
+  // hands grip the sign's lower corners, clear of the text
+  p.aL1 = 44 + bob; p.aL2 = -10;
+  p.aR1 = 44 + bob; p.aR2 = -10;
 }
 
+/** Arms raised: the rig stretches them and tucks them behind the head, so the hands
+ *  pop out beside the ears ("banzai"). spread opens them a little wider. */
 export function armsUp(p: Pose, k = 1, spread = 0) {
-  p.aL1 = 8 + (160 - spread - 8) * k; p.aL2 = 6 + (8 - 6) * k;
-  p.aR1 = 8 + (160 - spread - 8) * k; p.aR2 = 6 + (8 - 6) * k;
+  const a1 = 118 + spread * 0.15, a2 = 34;
+  p.aL1 = 8 + (a1 - 8) * k; p.aL2 = 6 + (a2 - 6) * k;
+  p.aR1 = 8 + (a1 - 8) * k; p.aR2 = 6 + (a2 - 6) * k;
 }
 
 /** One arm raised to the side for a wave; returns nothing, oscillates the forearm. */
 export function wave(p: Pose, t: number, side: "L" | "R" = "R") {
-  const w = Math.sin(t * 14) * 28;
-  if (side === "R") { p.aR1 = 150; p.aR2 = 22 + w; }
-  else { p.aL1 = 150; p.aL2 = 22 + w; }
+  const w = Math.sin(t * 14) * 26;
+  if (side === "R") { p.aR1 = 116; p.aR2 = 34 + w; }
+  else { p.aL1 = 116; p.aL2 = 34 + w; }
 }
 
 /** Typing on a laptop on the lap. */

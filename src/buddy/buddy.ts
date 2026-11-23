@@ -66,6 +66,7 @@ export class Buddy {
   private pupY = new Spring(0, 220, 18);
   private cursor = { x: 0, y: 0, moved: 0 };
   private saccade = { x: 0, y: 0, next: 0 };
+  private micro = { x: 0, y: 0, next: 0 };
   /** externally forced look target in window px (e.g. at a prop), or null */
   lookAt: { x: number; y: number } | null = null;
   hat = "";                  // persistent accessory from settings/context
@@ -206,11 +207,21 @@ export class Buddy {
     }
     const a = c?.a;
 
-    // breathing
-    const br = Math.sin(this.time * 2.1);
-    p.sy *= 1 + br * 0.008;
-    p.sx *= 1 - br * 0.004;
-    p.headY += Math.sin(this.time * 2.1 - 0.6) * 0.9;
+    // breathing: visible chest rise that lifts the shoulders/arms; head lags a beat behind
+    const T = this.time;
+    const br = Math.sin(T * 2.1);
+    p.sy *= 1 + br * 0.014;
+    p.sx *= 1 - br * 0.006;
+    p.headY += Math.sin(T * 2.1 - 0.6) * 1.3;
+    p.aL1 += br * 2; p.aR1 += br * 2;
+
+    // organic drift: sums of incommensurate sines never visibly loop, so even a
+    // standing buddy is always subtly shifting (head tilt, lean, weight)
+    const calm = a?.noLook ? 0.5 : 1;
+    p.head += (Math.sin(T * 0.37) + Math.sin(T * 0.91 + 1.3) * 0.6) * 1.7 * calm;
+    p.torso += Math.sin(T * 0.53 + 2.1) * 0.9 * calm;
+    p.headX += Math.sin(T * 0.29 + 0.7) * 1.1 * calm;
+    p.rot += Math.sin(T * 0.23 + 4) * 0.6 * calm;
 
     // blinking (with occasional double blinks)
     if (!a?.noBlink) {
@@ -245,10 +256,17 @@ export class Buddy {
       const lx = clamp(tx / 360, -1, 1) * 0.7 * fs, ly = clamp(ty / 300, -1, 1) * 0.6;
       p.lookX += this.lookX.step(lx * w, dt);
       p.lookY += this.lookY.step(ly * w, dt);
-      p.pupilX += this.pupX.step(clamp((tx / 140) * fs, -1, 1) * w, dt);
-      p.pupilY += this.pupY.step(clamp(ty / 140, -1, 1) * w, dt);
+      // micro-saccades: tiny gaze jitter every 0.3-2s (static eyes read as "dead")
+      if (this.time > this.micro.next) {
+        this.micro = { x: rand(-0.12, 0.12), y: rand(-0.1, 0.1), next: this.time + rand(0.3, 2) };
+      }
+      p.pupilX += this.pupX.step(clamp((tx / 140) * fs, -1, 1) * w + this.micro.x, dt);
+      p.pupilY += this.pupY.step(clamp(ty / 140, -1, 1) * w + this.micro.y, dt);
       p.head += this.lookX.x * 4;
     }
+
+    // eyelids follow vertical gaze: lids drop when looking down, open a touch when looking up
+    if (p.eyeMode === "normal") p.eyes *= clamp(1 - Math.max(0, p.pupilY) * 0.28 + Math.max(0, -p.pupilY) * 0.06, 0.6, 1.06);
 
     // blend into new action
     if (this.blendT < 1) {

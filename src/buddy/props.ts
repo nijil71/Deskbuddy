@@ -27,23 +27,24 @@ export const HAND_PROPS: Record<string, Prop> = {
   paper: { upright: true, svg: `
     <path d="M-12 -24 h20 l6 6 v24 h-26z" ${P} ${S} stroke-width="2.6"/>
     <path d="M-7 -14 h14 M-7 -8 h14 M-7 -2 h9" ${S} stroke-width="1.5"/>` },
-  camera: { upright: true, svg: `
+  camera: { upright: true, svg: `<g transform="translate(-4,-22)">
     <rect x="-16" y="-20" width="32" height="22" rx="5" ${I}/>
     <rect x="-8" y="-25" width="12" height="6" rx="2" ${I}/>
     <circle cx="0" cy="-9" r="7.5" ${P} stroke="var(--ink)" stroke-width="2.5"/>
-    <circle cx="0" cy="-9" r="3.5" ${I}/>` },
+    <circle cx="0" cy="-9" r="3.5" ${I}/></g>` },
   umbrella: { upright: true, svg: `
-    <path d="M0 0 v-58" ${S} stroke-width="3"/>
+    <path d="M0 0 L-32 -160" ${S} stroke-width="3"/>
     <path d="M0 4 q0 6 -6 5" fill="none" ${S} stroke-width="3"/>
-    <path d="M-40 -56 q40 -40 80 0 q-10 -8 -20 0 q-10 -8 -20 0 q-10 -8 -20 0 q-10 -8 -20 0z" ${A} ${S}/>` },
+    <g transform="translate(-32,0)"><path d="M-84 -156 q84 -76 168 0 q-21 -12 -42 0 q-21 -12 -42 0 q-21 -12 -42 0 q-21 -12 -42 0z" ${A} ${S}/>
+    <path d="M0 -194 v-8" ${S} stroke-width="3"/></g>` },
   fan: { upright: false, svg: `
     <path d="M0 0 l-14 -24 q14 -10 28 0z" ${P} ${S} stroke-width="2.6"/>
     <path d="M0 0 l-7 -26 M0 0 v-27 M0 0 l7 -26" ${S} stroke-width="1.4"/>` },
   yoyo: { upright: true, svg: `<path d="M0 0 v18" ${S} stroke-width="1.4"/>
     <g class="yoyo-disc"><circle cx="0" cy="24" r="7" ${A} ${S} stroke-width="2.6"/><circle cx="0" cy="24" r="2" ${I}/></g>` },
-  binoculars: { upright: true, svg: `
+  binoculars: { upright: true, svg: `<g transform="translate(-6,-30)">
     <rect x="-15" y="-10" width="12" height="16" rx="4" ${I}/><rect x="3" y="-10" width="12" height="16" rx="4" ${I}/>
-    <rect x="-4" y="-6" width="8" height="6" ${I}/>` },
+    <rect x="-4" y="-6" width="8" height="6" ${I}/></g>` },
   ball: { upright: true, svg: `<circle cx="0" cy="-4" r="6" ${A} ${S} stroke-width="2.4"/>` },
   phone: { upright: true, svg: `<rect x="-7" y="-22" width="14" height="24" rx="3" ${I}/>
     <rect x="-5" y="-19" width="10" height="16" rx="1.5" fill="var(--accent)" opacity=".85"/>` },
