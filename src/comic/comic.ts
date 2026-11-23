@@ -101,7 +101,7 @@ function pose(sc: Scene, k: number): string {
   for (let i = 0; i < 20; i++) tick(1 / 30);
   b.play(sc.action, sc.args, { force: true });
   for (let t = 0; t < sc.at; t += 1 / 30) { bb.blinkT = -1; bb.blinkIn = 99; tick(1 / 30); } // never caught mid-blink
-  return b.rig.svg.innerHTML.replace(/eyeclip(\d)/g, `eyeclip$1p${k}`);
+  return b.rig.svg.innerHTML.replace(/(rg\d+)_/g, `$1p${k}_`); // unique clip ids per panel
 }
 
 const RIG_CSS = rigCss.split("\n").filter((l) => l.startsWith(".rig ")).join("\n").replace(/\.rig /g, ".rg ");

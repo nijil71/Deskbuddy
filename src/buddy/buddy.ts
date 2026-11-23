@@ -82,6 +82,9 @@ export class Buddy {
   onFrame?: (dt: number) => void;
   /** speech bubble hook, wired up by the UI layer */
   say?: (text: string, opts?: SayOpts) => void;
+  /** while > time, the mouth lip-syncs (a speech bubble is up) */
+  talkUntil = 0;
+  talk(text: string) { this.talkUntil = this.time + Math.min(4, 0.5 + text.replace(/<[^>]*>/g, "").length * 0.05); }
 
   constructor(host: HTMLElement) {
     this.rig = new Rig(host);
@@ -159,10 +162,14 @@ export class Buddy {
     if (!h) this.wake();
   }
 
-  /** Make sure the loop is ticking (after being idle-throttled). */
+  /** Make sure the loop is ticking — after idle throttling *or* after being hidden. While hidden the
+   *  loop stops completely (no frame queued), so un-hiding must start it again from scratch; before,
+   *  it only restarted when a timer was pending and the buddy stayed frozen on his last frame. */
+  private queued = false; // a timer or rAF frame is on its way
   wake() {
     if (!this.running || this.hidden) return;
-    if (this.timer) { clearTimeout(this.timer); this.timer = 0; this.schedule(true); }
+    if (this.timer) { clearTimeout(this.timer); this.timer = 0; this.queued = false; }
+    if (!this.queued) { this.lastFrame = performance.now(); this.schedule(true); }
   }
 
   private fpsNow(): Fps {
@@ -176,12 +183,14 @@ export class Buddy {
 
   private schedule(now = false) {
     if (!this.running || this.hidden) return;
+    this.queued = true;
     const fps = FPS[this.fpsNow()];
     if (fps >= 60 || now) requestAnimationFrame(this.frame);
     else this.timer = window.setTimeout(() => { this.timer = 0; requestAnimationFrame(this.frame); }, 1000 / fps - 4);
   }
 
   private frame = (now: number) => {
+    this.queued = false;
     if (!this.running || this.hidden) return;
     const dt = clamp((now - this.lastFrame) / 1000, 0.001, 0.1);
     this.lastFrame = now;
@@ -293,6 +302,7 @@ export class Buddy {
       blendPose(this.pose, this.from, p, easeInOut(this.blendT));
     } else copyPose(this.pose, p);
 
+    this.rig.talking = this.time < this.talkUntil;
     this.rig.render(this.pose, dt);
     this.fx.update(dt);
 

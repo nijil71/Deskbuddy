@@ -55,6 +55,7 @@ export class Mood {
     p.blush = Math.max(p.blush, (v - 0.6) * 0.6);                 // rosy when delighted
     p.hipY += (1 - e) * 1.6;                                      // slump a little when tired
     p.head += v < -0.15 ? 4 : 0;                                  // head hangs when glum
+    if (v < -0.1) p.lidTilt += Math.min(0.7, (-v - 0.1) * 1.6);     // sad, droopy lids
     p.y -= v > 0.6 ? Math.max(0, Math.sin(t * 2.4)) * 1.5 : 0;    // tiny happy bounce
     p.aL1 += v > 0.5 ? 3 : 0; p.aR1 += v > 0.5 ? 3 : 0;           // open, relaxed arms
   }

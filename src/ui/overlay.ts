@@ -67,6 +67,7 @@ export class Overlay {
     void this.bubble.offsetWidth; // restart pop animation
     this.bubble.classList.add("show");
     this.bh = this.bubble.offsetHeight;
+    if (!opts.thought) this.b.talk?.(text);
     this.pos = { x: -1, y: -1 };
     this.place();
     const ms = opts.ms ?? (opts.buttons ? 0 : Math.min(7000, 1800 + text.length * 55));
@@ -75,6 +76,7 @@ export class Overlay {
 
   hideBubble() {
     clearTimeout(this.hideTimer);
+    this.b.talkUntil = 0;
     this.bubble.classList.remove("show");
     this.sticky = false;
     const next = this.queue.shift();

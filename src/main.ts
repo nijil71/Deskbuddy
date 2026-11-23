@@ -13,6 +13,7 @@ import { Remember } from "./buddy/memory";
 import { Overlay } from "./ui/overlay";
 import { W, H, CX, GROUND } from "./buddy/rig";
 import { greetWord } from "./shared/shift";
+import { repairPlan } from "./buddy/repair";
 import { loadSettings, onSettings, patchSettings, SKINS, type Settings } from "./shared/settings";
 
 const win = getCurrentWindow();
@@ -319,6 +320,44 @@ async function boot() {
   buddy.play("idle", { dur: 0.1 });
   await win.show();
   buddy.syncHitbox();
+
+  // window watchdog: display changes (VDI/RDP fullscreen, docking, scaling) can resize or move our
+  // window behind our back — check every 2 s and right after any scale change, repair what drifted
+  let repairing = false;
+  const repairWindow = async () => {
+    if (repairing || !brain.userVisible) return;
+    repairing = true;
+    try {
+      // window on screen but the loop thinks it's hidden (or the other way round): re-sync both
+      const shown = await win.isVisible();
+      if (shown && buddy.hidden && !brain.presence.locked) { await brain.syncWindow(); return; }
+      if (buddy.hidden) return;
+      const w = buddy.world;
+      await w.refreshMonitors();
+      const dpr = window.devicePixelRatio || 1;
+      const [size, pos] = await Promise.all([win.innerSize(), win.outerPosition()]);
+      const o = w.windowOrigin();
+      const plan = repairPlan({
+        actualSize: { w: size.width, h: size.height },
+        wantSize: { w: Math.round(W * settings.size * dpr), h: Math.round(H * settings.size * dpr) },
+        actualPos: { x: pos.x, y: pos.y }, wantPos: { x: Math.round(o.x), y: Math.round(o.y) },
+        feet: { x: w.fx, y: w.fy }, monitors: w.monitors.map((m) => m.bounds),
+        busy: buddy.dragging || w.surface.kind === "air" || ["jumpTo", "airborne", "dragged"].includes(buddy.actionName),
+      });
+      if (plan.resize) await win.setSize(new LogicalSize(Math.round(W * settings.size), Math.round(H * settings.size)));
+      if (plan.rehome) {
+        const m = w.monitors.find((x) => x.primary) ?? w.monitors[0];
+        w.surface = { kind: "floor" };
+        w.fx = m.work.x + m.work.w - 220 * w.scale;
+        w.fy = w.floorY(w.fx);
+      }
+      if (plan.resize || plan.reposition) { w.applyPosition(true); buddy.syncHitbox(); }
+      if (plan.rehome) buddy.play("land", { impact: 600 }, { force: true });
+    } catch { /* window busy; try again next round */ } finally { repairing = false; }
+  };
+  setInterval(repairWindow, 2000);
+  win.onScaleChanged(() => setTimeout(repairWindow, 300)).catch(() => {});
+  win.onResized(() => setTimeout(repairWindow, 300)).catch(() => {});
 
   // entrance: drop in from above
   const w = buddy.world;

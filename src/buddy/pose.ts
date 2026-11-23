@@ -16,6 +16,7 @@ export interface Pose {
   lookX: number; lookY: number;  // -1..1, features parallax (3/4 head turn)
   pupilX: number; pupilY: number;// -1..1 pupil inside eye
   eyes: number;                  // openness 0..1
+  lidTilt: number;               // eyelid slant: + sad (outer corners droop), − determined/cross
   eyeMode: EyeMode;
   mouth: Mouth;
   blush: number;
@@ -31,7 +32,7 @@ export interface Pose {
 
 export const NUMERIC_KEYS = [
   "x", "y", "rot", "sx", "sy", "face", "torso", "hipY", "head", "headX", "headY", "lookX", "lookY",
-  "pupilX", "pupilY", "eyes", "blush", "glassesY", "aL1", "aL2", "aR1", "aR2", "lL1", "lL2", "lR1", "lR2", "shadow",
+  "pupilX", "pupilY", "eyes", "lidTilt", "blush", "glassesY", "aL1", "aL2", "aR1", "aR2", "lL1", "lL2", "lR1", "lR2", "shadow",
 ] as const;
 type NumKey = (typeof NUMERIC_KEYS)[number];
 
@@ -39,7 +40,7 @@ export function basePose(): Pose {
   return {
     x: 0, y: 0, rot: 0, sx: 1, sy: 1, face: 1, torso: 0, hipY: 0,
     head: 0, headX: 0, headY: 0, lookX: 0, lookY: 0, pupilX: 0, pupilY: 0,
-    eyes: 1, eyeMode: "normal", mouth: "o", blush: 0, glassesY: 0,
+    eyes: 1, lidTilt: 0, eyeMode: "normal", mouth: "o", blush: 0, glassesY: 0,
     aL1: 8, aL2: 6, aR1: 8, aR2: 6, lL1: 0, lL2: 0, lR1: 0, lR2: 0,
     propL: "", propR: "", hat: "", shadow: 1,
   };
@@ -82,9 +83,18 @@ export class Spring {
   v = 0;
   constructor(public x = 0, public k = 120, public d = 12) {}
   step(target: number, dt: number) {
-    const a = (target - this.x) * this.k - this.v * this.d;
-    this.v += a * dt;
-    this.x += this.v * dt;
+    // Integrate in small sub-steps: a stiff spring stepped with a big dt (the idle loop runs at
+    // 10 fps → dt 0.1 s) is numerically unstable and explodes. ≤ 1/240 s per sub-step is stable
+    // for every spring in the rig, at any frame rate.
+    if (!Number.isFinite(target)) target = 0;
+    const n = Math.min(60, Math.max(1, Math.ceil(dt * 240)));
+    const h = dt / n;
+    for (let i = 0; i < n; i++) {
+      const a = (target - this.x) * this.k - this.v * this.d;
+      this.v += a * h;
+      this.x += this.v * h;
+    }
+    if (!Number.isFinite(this.x) || !Number.isFinite(this.v)) { this.x = target; this.v = 0; } // never poison the drawing
     return this.x;
   }
   kick(v: number) { this.v += v; }
