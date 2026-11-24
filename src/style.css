@@ -59,32 +59,85 @@ html, body {
 .bubble.thought::after { width: 9px; height: 9px; border: 2.5px solid var(--ui-line); border-radius: 50%; bottom: -16px; transform: translateX(-30%); }
 .bubble-btns { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
 .bubble-btns:empty { display: none; }
-.bubble button, .menu button {
+.bubble button {
   font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
   border: 2px solid var(--ui-line); background: var(--ui-bg); color: var(--ui-ink);
   border-radius: 9px; padding: 3px 9px; transition: transform .1s ease, background .1s;
 }
 .bubble button:hover { background: #f1ece2; }
-.bubble button:active, .menu button:active { transform: scale(.95); }
+.bubble button:active { transform: scale(.95); }
 .bubble button.primary { background: var(--ui-ink); color: var(--ui-bg); }
 
-/* ---- right-click menu (2-column grid so it always fits the 280x400 window) ---- */
+/* ---- right-click menu: header · tiles · list · mode · switches ---- */
 .menu {
-  position: absolute; width: 236px; padding: 5px;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
-  background: var(--ui-bg); border: 2.5px solid var(--ui-line); border-radius: 14px;
-  box-shadow: 3px 4px 0 rgba(0,0,0,.18);
-  opacity: 0; transform: scale(.85) translateY(6px); transform-origin: 50% 0; pointer-events: none;
+  --m-soft: color-mix(in srgb, var(--ui-ink) 5%, var(--ui-bg));
+  --m-hover: color-mix(in srgb, var(--ui-ink) 9%, var(--ui-bg));
+  --m-line: color-mix(in srgb, var(--ui-ink) 12%, transparent);
+  --m-on: #2f9e5a;
+  position: absolute; width: 244px; box-sizing: border-box; padding: 8px;
+  display: flex; flex-direction: column; gap: 6px; overflow-y: auto; scrollbar-width: none;
+  background: var(--ui-bg); color: var(--ui-ink);
+  border: 1px solid var(--m-line); border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.18);
+  opacity: 0; transform: scale(.92); pointer-events: none;
   transition: opacity .12s ease, transform .12s ease;
 }
-.menu.show { opacity: 1; transform: none; pointer-events: auto; transition: opacity .1s, transform .26s cubic-bezier(.34,1.56,.64,1); }
+.menu.show { opacity: 1; transform: none; pointer-events: auto; transition: opacity .1s ease, transform .22s cubic-bezier(.2,.9,.3,1.15); }
 .menu button {
-  display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; border: 0; text-align: left;
-  padding: 5px 6px; border-radius: 8px; font-weight: 600; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: inherit; color: inherit; cursor: pointer; border: 0; background: transparent; margin: 0;
+  display: flex; align-items: center; gap: 7px; min-width: 0; text-align: left;
+  transition: background .12s ease, transform .1s ease;
 }
-.menu button:hover { background: #efe9df; }
-.menu .mi { width: 16px; flex: none; text-align: center; }
-.menu-sep { grid-column: 1 / -1; height: 2px; margin: 3px 6px; background: var(--ui-line); opacity: .15; border-radius: 2px; }
+.menu button:hover { background: var(--m-hover); }
+.menu button:active { transform: scale(.96); }
+.menu button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.menu .i { width: 15px; height: 15px; color: var(--ui-muted); }
+
+/* header */
+.menu .mh { display: flex; align-items: center; gap: 2px; padding: 0 0 2px 4px; }
+.menu .mh-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.menu .mh-t b { font-size: 12.5px; font-weight: 700; }
+.menu .mh-t span { font-size: 10.5px; font-weight: 500; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu .mh-b { width: 26px; height: 26px; justify-content: center; border-radius: 8px; flex: none; }
+.menu .mh-b .i { width: 14px; height: 14px; }
+
+/* tiles */
+.mt { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.menu .mt-b {
+  flex-direction: column; justify-content: center; gap: 3px; padding: 9px 2px 8px;
+  border-radius: 12px; background: var(--m-soft); font-size: 11px; font-weight: 600; text-align: center;
+}
+.menu .mt-b:hover { background: var(--m-hover); }
+.menu .mt-b .i { width: 19px; height: 19px; color: var(--ui-ink); }
+.menu .mt-b small { font-size: 9.5px; font-weight: 600; color: var(--ui-muted); margin-top: -2px; font-variant-numeric: tabular-nums; }
+.menu .mt-b.accent { background: var(--ui-ink); color: var(--ui-bg); }
+.menu .mt-b.accent .i { color: var(--ui-bg); }
+.menu .mt-b.accent small { color: color-mix(in srgb, var(--ui-bg) 70%, transparent); }
+.menu .mt-b.accent:hover { background: color-mix(in srgb, var(--ui-ink) 85%, var(--ui-bg)); }
+
+/* compact list */
+.menu .ml { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; }
+.menu .ml-b { padding: 6px 7px; border-radius: 8px; font-size: 11.5px; font-weight: 500; }
+.menu .ml-b span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.menu .msep { height: 1px; background: var(--m-line); margin: 1px 2px; flex: none; }
+
+/* mode segmented control */
+.menu .mseg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; border-radius: 10px; background: var(--m-soft); }
+.menu .mseg-b { justify-content: center; gap: 5px; padding: 5px 0; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--ui-muted); }
+.menu .mseg-b .i { width: 13px; height: 13px; }
+.menu .mseg-b.on { background: var(--ui-bg); color: var(--ui-ink); box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 0 0 1px var(--m-line); cursor: default; }
+.menu .mseg-b.on .i { color: var(--ui-ink); }
+
+/* switch rows */
+.menu .mrow { padding: 6px 7px; border-radius: 8px; font-size: 11.5px; font-weight: 500; }
+.menu .mrow-l { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.menu .mrow-l small { font-size: 10px; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu .mrow.on > .i { color: var(--m-on); }
+.menu .sw { flex: none; position: relative; width: 28px; height: 16px; border-radius: 99px; background: color-mix(in srgb, var(--ui-ink) 22%, var(--ui-bg)); transition: background .16s ease; }
+.menu .sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .18s cubic-bezier(.3,1.3,.5,1); }
+.menu .mrow.on .sw { background: var(--m-on); }
+.menu .mrow.on .sw::after { transform: translateX(12px); }
 
 /* ---- focus ring ---- */
 .ring { position: absolute; left: 0; top: 0; width: 44px; height: 44px; opacity: 0; transition: opacity .3s; pointer-events: none; }
@@ -111,13 +164,10 @@ html, body {
 #flash.go { animation: flash .45s ease-out; }
 @keyframes flash { 0% { opacity: .9; } 100% { opacity: 0; } }
 
-@media (prefers-reduced-motion: reduce) { .bubble, .menu { transition: opacity .1s; } }
+@media (prefers-reduced-motion: reduce) { .bubble, .menu, .menu button, .sw, .sw::after { transition: opacity .1s; } }
 
 /* ---- line icons (replace emojis) ---- */
 .i { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; flex: none; }
-.menu .mi { display: inline-flex; justify-content: center; color: #4a4440; }
-.menu .mi .i { width: 14px; height: 14px; }
-.menu .mi.on { color: #46a758; }
 .bubble .ie { width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin: 0 .05em; }
 .bubble button .i { width: 12px; height: 12px; vertical-align: -2px; }
 .bubble .ie-dot { color: #46a758; width: .8em; height: .8em; vertical-align: -0.05em; }

@@ -12,7 +12,7 @@ import { setupDrop } from "./ui/drop";
 import { Brain, type Presence, type SysStats, type Fg, type Media } from "./buddy/brain";
 import { Voice } from "./buddy/voice";
 import { Remember } from "./buddy/memory";
-import { Overlay } from "./ui/overlay";
+import { Overlay, type MenuModel } from "./ui/overlay";
 import { W, H, CX, GROUND } from "./buddy/rig";
 import { greetWord } from "./shared/shift";
 import { repairPlan } from "./buddy/repair";
@@ -144,7 +144,10 @@ svg.addEventListener("pointerup", (e) => {
 
 svg.addEventListener("contextmenu", (e) => {
   e.preventDefault();
-  openMenu();
+  // right-click again = close (the pointerdown just before this may already have closed it)
+  if (ui.menuOpen || performance.now() - ui.menuClosedAt < 300) { ui.closeMenu(); return; }
+  const r = stage.getBoundingClientRect(), sc = r.width / W || 1;
+  ui.openMenu(menuModel, { x: (e.clientX - r.left) / sc, y: (e.clientY - r.top) / sc });
 });
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -162,52 +165,77 @@ function greeting() {
   return `${greetWord()}! 👋`;
 }
 
-function openMenu() {
+const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${(s / 60) | 0}:${String(s % 60).padStart(2, "0")}`; };
+
+/** What the right-click menu shows right now. Re-run on every settings change while it's open. */
+function menuModel(): MenuModel {
   const f = brain.focus;
   // Every action reports failures in a bubble instead of failing silently.
   const oops = (what: string) => (e: unknown) => { console.error(what, e); ui.say(`Couldn't ${what} 😕`, { ms: 3000 }); };
   const panel = (tab: string) => () => invoke("open_panel", { tab }).catch(oops(`open ${tab}`));
   const keepOn = settings.keep.enabled;
-  ui.openMenu([
-    f.running
-      ? { label: f.s.paused ? "Resume" : "Pause", icon: f.s.paused ? "play" : "pause", fn: () => f.cmd(f.s.paused ? "resume" : "pause") }
-      : { label: `Focus ${settings.focus.work}m`, icon: "headphones", fn: () => f.cmd("start") },
-    f.running
-      ? { label: "Stop focus", icon: "stop", fn: () => f.cmd("stop") }
-      : { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
-    { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
-    { label: "Note", icon: "note", fn: panel("notes") },
-    { label: "My day", icon: "comic", fn: panel("day") },
-    { label: "Launcher", icon: "rocket", fn: panel("launcher") },
-    {
-      label: "Screenshot", icon: "camera",
-      fn: () => buddy.play("camera", {
-        then: () => invoke<boolean>("shell_open", { target: "ms-screenclip:" })
-          .then((ok) => { if (!ok) oops("open the snipping tool")(null); })
-          .catch(oops("open the snipping tool")),
-      }, { force: true }),
+  const shushed = voice.shushed;
+  const asleep = buddy.actionName === "sleep";
+  const snip = () => buddy.play("camera", {
+    then: () => invoke<boolean>("shell_open", { target: "ms-screenclip:" })
+      .then((ok) => { if (!ok) oops("open the snipping tool")(null); })
+      .catch(oops("open the snipping tool")),
+  }, { force: true });
+
+  const status = f.running
+    ? `${f.s.phase === "work" ? "Focus" : "Break"} ${f.s.paused ? "paused" : "on"} · ${mmss(f.s.paused ? f.s.remaining : f.s.endsAt - Date.now())}`
+    : shushed ? `Shh until ${new Date(settings.shhUntil).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : keepOn ? "Keeping you green" : "Keep-alive is off";
+
+  return {
+    title: greetWord(),
+    status,
+    head: [
+      { label: "Settings", icon: "gear", fn: panel("settings") },
+      { label: "Hide buddy", icon: "eyeOff", fn: () => invoke("set_buddy_visible", { visible: false }).catch(oops("hide")) },
+    ],
+    tiles: f.running
+      ? [
+          f.s.paused
+            ? { label: "Resume", icon: "play", hint: mmss(f.s.remaining), accent: true, fn: () => f.cmd("resume") }
+            : { label: "Pause", icon: "pause", hint: mmss(f.s.endsAt - Date.now()), accent: true, fn: () => f.cmd("pause") },
+          { label: "Stop", icon: "stop", fn: () => f.cmd("stop") },
+          { label: "Note", icon: "note", fn: panel("notes") },
+          { label: "Snip", icon: "camera", fn: snip },
+        ]
+      : [
+          { label: "Focus", icon: "headphones", hint: `${settings.focus.work} min`, accent: true, fn: () => f.cmd("start") },
+          { label: "Note", icon: "note", fn: panel("notes") },
+          { label: "Snip", icon: "camera", fn: snip },
+        ],
+    items: [
+      { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
+      { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
+      { label: "My day", icon: "comic", fn: panel("day") },
+      { label: "Launcher", icon: "rocket", fn: panel("launcher") },
+      { label: asleep ? "Wake up" : "Nap", icon: asleep ? "sun" : "moon", fn: () => asleep ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
+      { label: "Surprise me", icon: "dice", fn: () => buddy.play(["juggle", "music", "magic", "celebrate", "yoyo", "doodle", "news"][(Math.random() * 7) | 0], undefined, { force: true }) },
+    ],
+    seg: {
+      value: settings.mode,
+      options: [
+        { value: "work", label: "Work", icon: "briefcase" },
+        { value: "chill", label: "Chill", icon: "sparkles" },
+        { value: "quiet", label: "Quiet", icon: "mute" },
+      ],
+      pick: (v) => brain.setMode(v as Settings["mode"], true).catch(oops("change mode")),
     },
-    { label: "Surprise!", icon: "dice", fn: () => buddy.play(["juggle", "music", "magic", "celebrate", "yoyo", "doodle", "news"][(Math.random() * 7) | 0], undefined, { force: true }) },
-    { label: "", icon: "", fn: () => {}, sep: true },
-    {
-      label: keepOn ? "Keep-alive on" : "Keep-alive off", icon: keepOn ? "dot" : "ring",
-      fn: () => patchSettings((s) => { s.keep.enabled = !keepOn; })
-        .then(() => ui.say(!keepOn ? "Keep-alive on. I'll keep you green 🟢" : "Keep-alive off. Teams may show Away.", { ms: 2600 }))
-        .catch(oops("change keep-alive")),
-    },
-    {
-      label: `Mode: ${settings.mode === "work" ? "Work" : settings.mode === "chill" ? "Chill" : "Quiet"}`,
-      icon: settings.mode === "work" ? "briefcase" : settings.mode === "chill" ? "sparkles" : "mute",
-      fn: () => brain.setMode(settings.mode === "work" ? "chill" : settings.mode === "chill" ? "quiet" : "work"),
-    },
-    voice.shushed
-      ? { label: "Un-shh", icon: "volume", fn: () => brain.unshh() }
-      : { label: "Shh 1 hour", icon: "mute", fn: () => brain.shh(60) },
-    { label: buddy.actionName === "sleep" ? "Wake up" : "Nap", icon: "moon", fn: () => buddy.actionName === "sleep" ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
-    { label: "Settings", icon: "gear", fn: panel("settings") },
-    { label: "Hide", icon: "eyeOff", fn: () => invoke("set_buddy_visible", { visible: false }).catch(oops("hide")) },
-  ]);
-  setTimeout(() => { if (ui.menuOpen) ui.closeMenu(); }, 9000);
+    toggles: [
+      {
+        label: "Keep Teams green", icon: "dot", on: keepOn, hint: keepOn ? "Nudges input when you're idle" : undefined,
+        fn: () => patchSettings((s) => { s.keep.enabled = !keepOn; }).catch(oops("change keep-alive")),
+      },
+      {
+        label: "Shh for an hour", icon: "mute", on: shushed, hint: shushed ? "Meetings still get through" : undefined,
+        fn: () => (shushed ? brain.unshh(true) : brain.shh(60, true)).catch(oops("change shh")),
+      },
+    ],
+  };
 }
 
 // ------------------------------------------------------------------ per-frame glue
@@ -261,7 +289,7 @@ async function boot() {
   brain.setSettings(settings);
   pushKeepalive(settings);
 
-  await listen<[number, number]>("cursor", (e) => { buddy.setCursor(e.payload[0], e.payload[1]); brain.play.onCursor(e.payload[0], e.payload[1]); });
+  await listen<[number, number]>("cursor", (e) => { ui.onCursor(e.payload[0], e.payload[1]); buddy.setCursor(e.payload[0], e.payload[1]); brain.play.onCursor(e.payload[0], e.payload[1]); });
   await listen<number>("keys", (e) => brain.play.onKeys(e.payload));
   await setupDrop(buddy, ui, () => brain.onPoke(0.04));
   invoke("set_typing", { on: settings.play.typing }).catch(() => {});
@@ -318,6 +346,7 @@ async function boot() {
     if (keepChanged) pushKeepalive(s);
     invoke("set_typing", { on: s.play.typing }).catch(() => {});
     invoke("set_dnd", { on: s.dnd });
+    ui.refreshMenu(); // a switch in the menu flipped: show its new state
   });
 
   setInterval(() => brain.tick(), 20_000);

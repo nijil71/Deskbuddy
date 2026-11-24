@@ -258,20 +258,22 @@ export class Brain {
   onWave() { this.b.mood.nudge(0.05); this.mem.interacted(); }
   onRoughLanding() { this.b.mood.nudge(-0.03); this.mem.interacted(); }
 
-  async setMode(m: Settings["mode"]) {
+  /** `quiet`: the caller shows the change itself (the menu), so skip the bubble. */
+  async setMode(m: Settings["mode"], quiet = false) {
     await patchSettings((s) => { s.mode = m; s.shhUntil = 0; });
+    if (quiet) return;
     const text = { work: "Work mode: calm and quiet-ish 💼", chill: "Chill mode: full personality! 🎈", quiet: "Quiet mode: I'll just sit here 🤐" }[m];
     this.ui.say(text, { ms: 2400 });
   }
 
-  async shh(minutes = 60) {
+  async shh(minutes = 60, quiet = false) {
     await patchSettings((s) => { s.shhUntil = Date.now() + minutes * 60_000; });
-    this.b.play("shh", { text: `🤐 Shh for ${minutes === 60 ? "an hour" : minutes + " min"}. Meetings still get through.` }, { force: true });
+    this.b.play("shh", quiet ? { text: "" } : { text: `🤐 Shh for ${minutes === 60 ? "an hour" : minutes + " min"}. Meetings still get through.` }, { force: true });
   }
 
-  async unshh() {
+  async unshh(quiet = false) {
     await patchSettings((s) => { s.shhUntil = 0; });
-    this.b.play("wave", { text: "I'm back! 👋" }, { force: true });
+    this.b.play("wave", quiet ? {} : { text: "I'm back! 👋" }, { force: true });
   }
 
   // ------------------------------------------------------------------ events from Rust
