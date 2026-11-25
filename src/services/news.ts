@@ -46,6 +46,12 @@ export function pickStory(items: Story[], seen: Record<string, number>, cfg: New
     ?? fresh.find((s) => s.score >= cfg.minScore) ?? null;
 }
 
+/** Something to share when nothing's huge: a random decent story you haven't seen yet. */
+export function randomStory(items: Story[], seen: Record<string, number>, rnd = Math.random): Story | null {
+  const ok = items.filter((s) => !seen[s.id] && s.score >= 80 && Date.now() / 1000 - s.time < 48 * 3600);
+  return ok.length ? ok[Math.floor(rnd() * ok.length)] : null;
+}
+
 export function ago(time: number) {
   const m = Math.max(1, Math.round((Date.now() / 1000 - time) / 60));
   return m < 60 ? `${m}m` : m < 48 * 60 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;

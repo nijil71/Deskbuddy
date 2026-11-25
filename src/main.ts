@@ -9,6 +9,9 @@ import { registerLife } from "./buddy/anims/life";
 import { registerWork } from "./buddy/anims/work";
 import { registerPlay } from "./buddy/anims/play";
 import { setupDrop } from "./ui/drop";
+import { checkForUpdate, startUpdateChecks } from "./services/update";
+import { setupClaude } from "./services/claude";
+import { ocrSnip } from "./ui/ocr";
 import { Brain, type Presence, type SysStats, type Fg, type Media } from "./buddy/brain";
 import { Voice } from "./buddy/voice";
 import { Remember } from "./buddy/memory";
@@ -211,6 +214,7 @@ function menuModel(): MenuModel {
     items: [
       { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
       { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
+      { label: "Copy text", icon: "copy", fn: () => void ocrSnip(buddy, ui) },
       { label: "My day", icon: "comic", fn: panel("day") },
       { label: "Launcher", icon: "rocket", fn: panel("launcher") },
       { label: asleep ? "Wake up" : "Nap", icon: asleep ? "sun" : "moon", fn: () => asleep ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
@@ -299,6 +303,12 @@ async function boot() {
     if (Date.now() < workWatchUntil) emit("workstate", { ...w, log: brain.work.log.slice(-25), totals: brain.work.totals, boundaries: brain.work.boundaries }).catch(() => {});
   }, 1000);
   await setupDrop(buddy, ui, () => brain.onPoke(0.04));
+  startUpdateChecks(buddy, ui);
+  await setupClaude({
+    b: buddy, ui,
+    dnd: () => settings.dnd,
+    watching: () => (brain.category === "terminal" || brain.category === "code") && voice.idleMs < 15_000,
+  });
   invoke("set_typing", { on: settings.play.typing }).catch(() => {});
   await listen<Presence>("presence", (e) => brain.onPresence(e.payload));
   await listen("nudge-request", () => brain.onNudgeRequest());
@@ -333,6 +343,7 @@ async function boot() {
     }
     if (e.payload === "dnd") patchSettings((s) => { s.dnd = !s.dnd; });
     if (e.payload === "shh") voice.shushed ? brain.unshh() : brain.shh(60);
+    if (e.payload === "update") void checkForUpdate(buddy, ui, true);
   });
   await listen<{ action: string; args?: any }>("lab-play", (e) => {
     const { action, args } = e.payload;

@@ -1,4 +1,9 @@
+mod cc;
+mod convert;
+mod dl;
 mod input;
+mod ocr;
+mod update;
 mod win;
 
 use serde::{Deserialize, Serialize};
@@ -167,6 +172,80 @@ fn clip_remove(st: St, text: Option<String>) {
 #[tauri::command]
 async fn shell_open(target: String) -> bool {
     win::shell_open(&target)
+}
+
+/// Which formats a dropped file can be converted to (and which engine is missing, if any).
+#[tauri::command]
+async fn convert_targets(path: String) -> convert::Targets {
+    tauri::async_runtime::spawn_blocking(move || convert::targets(&path)).await.unwrap_or(convert::Targets { formats: vec![], missing: None })
+}
+
+/// Convert a file; the copy is written next to the original. Returns the new file's path.
+#[tauri::command]
+async fn convert_file(path: String, to: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || convert::convert(&path, &to)).await.map_err(|e| e.to_string())?
+}
+
+/// A newer installer built locally by `npm run release`, if there is one.
+#[tauri::command]
+fn local_update(app: AppHandle) -> Option<update::LocalUpdate> {
+    update::find(&app.package_info().version.to_string())
+}
+
+/// Start the installer, then quit so it can replace us (it relaunches the new version).
+#[tauri::command]
+async fn install_local_update(app: AppHandle, path: String) -> Result<(), String> {
+    update::launch_installer(&path)?;
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(400));
+        app.exit(0);
+    });
+    Ok(())
+}
+
+/// Read the text in an image file (Windows' built-in OCR).
+#[tauri::command]
+async fn ocr_file(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::ocr_file(&path)).await.map_err(|e| e.to_string())?
+}
+
+/// Open the snipping overlay, wait for the snip, return the text in it.
+#[tauri::command]
+async fn ocr_snip() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(ocr::ocr_snip).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn ytdlp_available() -> bool {
+    dl::ytdlp().is_some()
+}
+
+/// Download a video (or just its audio) from a link into Downloads. Returns the saved path.
+#[tauri::command]
+async fn download_media(app: AppHandle, url: String, audio: bool) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || dl::download(&app, &url, audio)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn claude_hooks_status() -> bool {
+    cc::hooks_installed()
+}
+
+/// Connect (or disconnect) Claude Code: adds our hooks to ~/.claude/settings.json.
+#[tauri::command]
+fn claude_hooks_set(on: bool) -> Result<bool, String> {
+    cc::set_hooks(on)?;
+    Ok(cc::hooks_installed())
+}
+
+/// `deskbud.exe --cc <event>` from a Claude Code hook: record it and exit (see cc.rs).
+pub fn cc_hook(event: &str) {
+    cc::hook_main(event);
+}
+
+#[tauri::command]
+fn reveal_file(path: String) -> bool {
+    convert::reveal(&path)
 }
 
 // Must be async: creating a window from a sync command deadlocks WebView2 on Windows.
@@ -490,6 +569,7 @@ fn build_tray(app: &AppHandle, st: &Arc<Shared>) -> tauri::Result<()> {
             &dnd,
             &MenuItem::with_id(app, "settings", "Settings && looks", true, None::<&str>)?,
             &MenuItem::with_id(app, "lab", "Animation lab", true, None::<&str>)?,
+            &MenuItem::with_id(app, "update", &format!("Check for updates (v{})", app.package_info().version), true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "quit", "Quit Deskbud", true, None::<&str>)?,
         ],
@@ -520,7 +600,7 @@ fn build_tray(app: &AppHandle, st: &Arc<Shared>) -> tauri::Result<()> {
                     };
                     let _ = app.emit("keepalive-toggled", enabled);
                 }
-                "dnd" | "shh" => {
+                "dnd" | "shh" | "update" => {
                     let _ = app.emit("tray", id);
                 }
                 "focus" | "reminders" | "notes" | "clipboard" | "launcher" | "settings" | "lab" => {
@@ -582,6 +662,17 @@ pub fn run() {
             clip_set,
             clip_remove,
             shell_open,
+            convert_targets,
+            convert_file,
+            reveal_file,
+            ocr_file,
+            ocr_snip,
+            ytdlp_available,
+            download_media,
+            claude_hooks_status,
+            claude_hooks_set,
+            local_update,
+            install_local_update,
             open_panel,
             set_buddy_visible,
             set_dnd,
@@ -622,6 +713,7 @@ pub fn run() {
             awareness_worker(handle.clone(), shared.clone());
             input::typing_worker(handle.clone(), shared.clone());
             input::hook_drop_paths(&handle);
+            cc::worker(handle.clone());
             Ok(())
         })
         .run(tauri::generate_context!())

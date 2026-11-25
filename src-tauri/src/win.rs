@@ -12,7 +12,7 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardSequenceNumber, OpenClipboard, SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE};
 use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
 use windows::Win32::System::StationsAndDesktops::{
     CloseDesktop, OpenInputDesktop, SwitchDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_SWITCHDESKTOP,
@@ -26,7 +26,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::Shell::{
-    FOLDERID_Pictures, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+    FOLDERID_Downloads, FOLDERID_Pictures, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
     ShellExecuteW, SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -100,10 +100,9 @@ pub fn is_fullscreen_busy() -> bool {
     }
 }
 
-/// The user's real Pictures folder (follows OneDrive / folder redirection).
-pub fn pictures_dir() -> std::path::PathBuf {
+fn known_folder(id: &windows::core::GUID, fallback: &str) -> std::path::PathBuf {
     unsafe {
-        if let Ok(p) = SHGetKnownFolderPath(&FOLDERID_Pictures, KF_FLAG_DEFAULT, None) {
+        if let Ok(p) = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None) {
             let s = p.to_string().unwrap_or_default();
             windows::Win32::System::Com::CoTaskMemFree(Some(p.0 as *const core::ffi::c_void));
             if !s.is_empty() {
@@ -111,7 +110,17 @@ pub fn pictures_dir() -> std::path::PathBuf {
             }
         }
     }
-    std::env::var("USERPROFILE").map(|h| std::path::Path::new(&h).join("Pictures")).unwrap_or_else(|_| ".".into())
+    std::env::var("USERPROFILE").map(|h| std::path::Path::new(&h).join(fallback)).unwrap_or_else(|_| ".".into())
+}
+
+/// The user's real Pictures folder (follows OneDrive / folder redirection).
+pub fn pictures_dir() -> std::path::PathBuf {
+    known_folder(&FOLDERID_Pictures, "Pictures")
+}
+
+/// The user's real Downloads folder.
+pub fn downloads_dir() -> std::path::PathBuf {
+    known_folder(&FOLDERID_Downloads, "Downloads")
 }
 
 /// Where the taskbars are right now (they slide in/out when set to auto-hide).
@@ -455,6 +464,63 @@ pub fn clipboard_text() -> Option<String> {
         let _ = CloseClipboard();
         out
     }
+}
+
+const CF_DIB: u32 = 8;
+
+/// The clipboard image (e.g. a fresh snip) as a complete .bmp file, if there is one.
+pub fn clipboard_bmp() -> Option<Vec<u8>> {
+    unsafe {
+        if (0..5).all(|_| {
+            let ok = OpenClipboard(None).is_ok();
+            if !ok {
+                std::thread::sleep(std::time::Duration::from_millis(30));
+            }
+            !ok
+        }) {
+            return None;
+        }
+        let out = (|| {
+            let h = GetClipboardData(CF_DIB).ok()?;
+            let g = HGLOBAL(h.0);
+            let size = GlobalSize(g);
+            let p = GlobalLock(g) as *const u8;
+            if p.is_null() || size < 40 {
+                return None;
+            }
+            let dib = std::slice::from_raw_parts(p, size).to_vec();
+            let _ = GlobalUnlock(g);
+            Some(dib_to_bmp(&dib))
+        })();
+        let _ = CloseClipboard();
+        out.flatten()
+    }
+}
+
+#[cfg(test)]
+pub fn dib_to_bmp_for_test(dib: &[u8]) -> Option<Vec<u8>> {
+    dib_to_bmp(dib)
+}
+
+/// CF_DIB is a .bmp file without its 14-byte file header; add one.
+fn dib_to_bmp(dib: &[u8]) -> Option<Vec<u8>> {
+    let u32_at = |o: usize| dib.get(o..o + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+    let header = u32_at(0)? as usize;
+    let bits = u16::from_le_bytes(dib.get(14..16)?.try_into().ok()?) as u32;
+    let compression = u32_at(16)?;
+    let used = u32_at(32)?;
+    let masks = if header == 40 && compression == 3 { 12 } else if header == 40 && compression == 6 { 16 } else { 0 };
+    let colors: u32 = if used > 0 { used } else if bits <= 8 { 1 << bits } else { 0 };
+    let palette = colors as usize * 4;
+    let offset = 14 + header + masks + palette;
+    let total = 14 + dib.len();
+    let mut out = Vec::with_capacity(total);
+    out.extend_from_slice(b"BM");
+    out.extend_from_slice(&(total as u32).to_le_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&(offset as u32).to_le_bytes());
+    out.extend_from_slice(dib);
+    Some(out)
 }
 
 pub fn set_clipboard_text(text: &str) -> bool {

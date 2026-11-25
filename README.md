@@ -12,6 +12,15 @@ npm run tauri dev      # development
 npm run tauri build    # release build + installers in src-tauri/target/release/bundle/
 ```
 
+## Updating your buddy
+
+```powershell
+npm run release            # bump the patch version (1.0.0 → 1.0.1) and build the installer
+npm run release -- minor   # or minor / major / an exact version like 2.0.0
+```
+
+Within about 2 minutes the running buddy finds the new installer in `src-tauri/target/release/bundle/nsis/`. It holds up a sign saying **Update available** with an **Update** button. Clicking it installs the new version and relaunches. To check straight away, use tray → **Check for updates**. "Later" snoozes that version for 4 hours. Everything stays local: no server and no signing keys.
+
 ## What it does
 
 | Area | Feature | Animation |
@@ -26,6 +35,10 @@ npm run tauri build    # release build + installers in src-tauri/target/release/
 | **System** | CPU > 88%, RAM > 92%, battery ≤ 20%, charger plugged in. | Fans itself and sweats, carries a heavy RAM box, droops holding a plug, happy bounce |
 | **Clipboard** | Keeps your last 30 text copies, in memory only. Search, re-copy, delete. | Catches a flying paper |
 | **Launcher** | **Ctrl+Alt+Space** anywhere opens fuzzy search over pinned apps, folders, URLs and `shell:`/`ms-settings:` targets, plus web search. | — |
+| **Convert files** | Drop a file on the buddy and press **Convert…**. It saves a copy next to the original and never overwrites. Images (jpg, png, webp, bmp, gif, tiff, ico) are converted built-in. Audio and video (mp4, mkv, webm, mov, avi, gif, mp3, wav, flac, m4a, ogg, opus) use [FFmpeg](https://ffmpeg.org) if installed. Documents use pandoc or LibreOffice (docx/xlsx/pptx → pdf, etc.) if installed. If the needed tool is missing, it offers the `winget` install command. Dropping several files of one type converts them all. | Waves a magic wand, then confetti |
+| **Claude Code** | Settings → Claude Code adds three hooks to `~/.claude/settings.json` (a backup is kept). When Claude finishes a task that took more than about 25 s, or needs your permission, the buddy tells you. It stays quiet if you're already in your terminal or editor. Only the project name and Claude's message are passed along, never your prompts. | Confetti when it's done, holds up a "Claude!" sign when you're needed |
+| **Copy text (OCR)** | Right-click → **Copy text** opens the snipping overlay. Snip anything and its text goes to your clipboard. Dropped images get a **Copy text** button too. It uses the OCR engine built into Windows, so it works offline with nothing to install. | Reads the paper |
+| **Video downloads** | Drop a YouTube, Vimeo, X, Instagram, TikTok, Reddit (and more) link and choose **Video** (MP4) or **MP3**. It saves to Downloads with live progress. Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) if installed (`winget install yt-dlp.yt-dlp`). | Magic wand, then confetti |
 | **Notes** | Colored sticky notes that save automatically. | Holds the note up |
 | **Screenshot** | Opens the Windows snipping overlay. | Camera pose and flash |
 | **Weather** | Open-Meteo (no key). Set your city in Settings. | Umbrella and rain, snowflakes, sunglasses |
@@ -49,6 +62,11 @@ Every animation is built on always-on layers: breathing, random (double) blinks,
 
 ```
 src-tauri/src/win.rs   Win32: idle, SendInput, lock, fullscreen, mic-in-use, monitors, windows, CPU/RAM/battery, clipboard, shell
+src-tauri/src/cc.rs       Claude Code hooks → buddy (`deskbud.exe --cc <event>`)
+src-tauri/src/ocr.rs      text from images (Windows.Media.Ocr)
+src-tauri/src/dl.rs       video/audio downloads (yt-dlp)
+src-tauri/src/update.rs   local self-update (finds newer installers from `npm run release`)
+src-tauri/src/convert.rs  file conversion (image crate + FFmpeg / pandoc / LibreOffice)
 src-tauri/src/lib.rs   state, workers (presence/keep-alive, cursor+click-through, sysmon, clipboard), tray, panel, hotkey
 src/buddy/rig.ts       the SVG puppet (head, hair tufts, glasses, eyes, mouths, rubber-hose limbs, props)
 src/buddy/buddy.ts     frame loop, action blending, alive layers

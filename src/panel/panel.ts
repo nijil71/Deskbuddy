@@ -374,7 +374,7 @@ function news() {
     <ol class="stories" id="stories"><li class="muted">Loading Hacker News…</li></ol>
     <section class="card">
       <h3>${icon("news")} Buddy news alerts</h3>
-      <div class="setting"><span class="grow">Tell me about big stories<small>At most one every 30 min, only within your mode's bubble budget.</small></span><label class="switch"><input type="checkbox" id="non" ${N.on ? "checked" : ""}><i></i></label></div>
+      <div class="setting"><span class="grow">Share Hacker News stories<small>Every 20–40 min: a big story if there is one, otherwise a random good read. Only within your mode's bubble budget.</small></span><label class="switch"><input type="checkbox" id="non" ${N.on ? "checked" : ""}><i></i></label></div>
       <div class="setting"><span class="grow">"Big" means at least</span>
         <select id="nms">${[100, 200, 300, 400, 600, 1000].map((v) => `<option value="${v}" ${N.minScore === v ? "selected" : ""}>${v} points</option>`).join("")}</select></div>
       <div class="setting"><span class="grow">My interests<small>Stories mentioning these get through sooner (from ~60 points). Comma separated.</small></span></div>
@@ -503,6 +503,7 @@ async function settings() {
   const tm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   let auto = false;
   try { auto = await autoIs(); } catch { /* dev mode */ }
+  const ccOn = await invoke<boolean>("claude_hooks_status").catch(() => false);
   const mem = await loadMemory();
   const mv = mem.mood.v, me = mem.mood.e;
   const [mIc, mTxt] = me < 0.3 ? ["faceSleep", "Sleepy"] : mv > 0.7 ? ["faceHappy", "Delighted"] : mv > 0.35 ? ["faceSmile", "Happy"] : mv > 0.05 ? ["faceCalm", "Content"] : mv > -0.25 ? ["faceMeh", "A bit bored"] : ["faceSad", "Missing you"];
@@ -557,6 +558,12 @@ async function settings() {
     </section>
 
     <section class="card">
+      <h3>${icon("laptop")} Claude Code</h3>
+      <div class="setting"><span class="grow">Tell me when Claude finishes or needs me<small>Only for tasks longer than about 25 s, and not while you're already in your terminal or editor. This adds three small hooks to ~/.claude/settings.json (a backup is kept).</small></span><label class="switch"><input type="checkbox" id="cch" ${ccOn ? "checked" : ""}><i></i></label></div>
+      <p class="muted" id="cchMsg"></p>
+    </section>
+
+    <section class="card">
       <h3>${icon("hand")} Play with me</h3>
       <div class="setting"><span class="grow">Cursor games<small>Wiggle the cursor near him and he chases it; rest it above his head and he jumps for it; high fives when you come back.</small></span><label class="switch"><input type="checkbox" id="pcur" ${S.play.cursor ? "checked" : ""}><i></i></label></div>
       <div class="setting"><span class="grow">Type along with me<small>He types on his little laptop in rhythm with you. Only counts keystrokes, never which keys, and nothing is stored.</small></span><label class="switch"><input type="checkbox" id="ptyp" ${S.play.typing ? "checked" : ""}><i></i></label></div>
@@ -598,6 +605,13 @@ async function settings() {
   chk("#ro", (v) => (S.roam = v));
   chk("#hf", (v) => (S.hideFullscreen = v));
   chk("#dnd", (v) => (S.dnd = v));
+  $<HTMLInputElement>("#cch").onchange = async (e) => {
+    const el = e.target as HTMLInputElement, msg = $("#cchMsg");
+    try {
+      el.checked = await invoke<boolean>("claude_hooks_set", { on: el.checked });
+      msg.textContent = el.checked ? "Connected. Takes effect in new Claude Code sessions." : "Disconnected.";
+    } catch (err) { el.checked = !el.checked; msg.textContent = String(err); }
+  };
   chk("#pcur", (v) => (S.play.cursor = v));
   chk("#ptyp", (v) => (S.play.typing = v));
   sel("#wu", (v) => (S.weather.unit = v as "c" | "f"));

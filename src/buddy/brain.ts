@@ -10,7 +10,7 @@ import { pick, rand } from "./pose";
 import { CX } from "./rig";
 import { Focus, chime, fmt } from "../services/focus";
 import { fetchWeather, weatherText, type Weather } from "../services/weather";
-import { fetchNews, pickStory, matches, hnThread, ago, type Story } from "../services/news";
+import { fetchNews, pickStory, randomStory, matches, hnThread, ago, type Story } from "../services/news";
 import { icon } from "../shared/icons";
 import { ActivityLog, standup, thingOf } from "../services/activity";
 import { WorkStateTracker, isHelp, type StateOut } from "./state";
@@ -70,6 +70,7 @@ export class Brain {
   private snoozes: Record<string, number> = {};
   private fired = new Set<string>();
   private newsAt = Date.now() - 25 * 60_000; // first look ~5 min after start
+  private newsGap = 30 * 60_000; // re-rolled each time: 20–40 min
   private newsList: Story[] = [];
   private newsIdx = 0;
   activity = new ActivityLog();
@@ -518,8 +519,8 @@ export class Brain {
     if (ph === "wrap" && this.mem.once("evening")) { this.voice.auto("evening", "Wrapping up soon? 🌇"); return; }
     if (since >= L + 1 && since < L + 6 && this.mem.once("late")) { this.voice.auto("late", "Your shift ended a while ago… time to rest? 🌙"); return; }
 
-    // Hacker News: every 30 min, maybe one big story (or one about your interests)
-    if (this.s.news.on && now - this.newsAt > 30 * 60_000) { this.newsAt = now; void this.checkNews(); return; }
+    // Hacker News: every 20–40 min, a big story, one about your interests, or a random pick
+    if (this.s.news.on && now - this.newsAt > this.newsGap) { this.newsAt = now; this.newsGap = rand(20, 40) * 60_000; void this.checkNews(); return; }
 
     // chatter (frequency from settings; budget from mode)
     const every = { quiet: Infinity, normal: 12 * 60_000, chatty: 5 * 60_000 }[this.s.chatter];
@@ -679,13 +680,14 @@ export class Brain {
     try { items = await fetchNews(this.s.news.feed); } catch { return; }
     const seen = this.mem.m.newsSeen;
     for (const k in seen) if (Date.now() - seen[k] > 3 * 86_400_000) delete seen[k];
-    const st = pickStory(items, seen, this.s.news);
+    const big = pickStory(items, seen, this.s.news);
+    const st = big ?? randomStory(items, seen);
     if (!st || !this.calm || this.focus.working || this.b.priority >= 1) return;
     if (!this.voice.allow("news")) return; // over budget → try again next round
     seen[st.id] = Date.now(); this.mem.save(); this.activity.count("news");
     const kw = matches(st.title, this.s.news.keywords);
     // the bubble pops exactly when he lowers the paper to tell you
-    this.b.play("news", { onPeek: () => this.voice.say("news", this.storyHtml(st, kw ? `About ${kw} on Hacker News` : "Big on Hacker News"),
+    this.b.play("news", { onPeek: () => this.voice.say("news", this.storyHtml(st, kw ? `About ${kw} on Hacker News` : big ? "Big on Hacker News" : pick(["Spotted on Hacker News", "Fun read from HN", "Hacker News is talking about"])),
       { html: true, ms: 20_000, buttons: this.storyButtons(st) }) }, { force: true });
   }
 
