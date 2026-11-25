@@ -142,6 +142,17 @@ npm run tauri dev      # run with live reload
 npm run tauri build    # make an installer in src-tauri/target/release/bundle/
 ```
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+*Status: application in progress. Current releases are not signed yet.*
+
+- **Committers and reviewers:** [@nijil71](https://github.com/nijil71). Changes from other contributors are merged only after review.
+- **Approvers:** [@nijil71](https://github.com/nijil71). Every signed release is approved by hand.
+- Only installers built from this repository by the [Release workflow](.github/workflows/release.yml) are signed. Third-party tools Deskbud can use (FFmpeg, yt-dlp, pandoc, LibreOffice) are not included or signed by this project.
+- **Privacy:** see the [Privacy](#privacy) section. Deskbud sends no personal data anywhere. Its only network requests are listed there, and each one can be turned off.
+- **System changes:** Deskbud starts with Windows (turn off in Settings), simulates a 1-pixel mouse move and an F15 key press only when keep-alive is on, and changes `~/.claude/settings.json` only when you turn on Claude Code alerts. It can be removed from Windows Settings → Apps.
+
 ## Contributing
 
 Bug reports, ideas, new animations and code are all welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). It covers setup, how the code is organised, and how to open a pull request. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security problem, see [SECURITY.md](SECURITY.md).
