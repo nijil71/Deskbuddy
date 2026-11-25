@@ -1,3 +1,5 @@
+# Dependabot checks for newer dependency versions once a month and opens ONE pull request per
+# ecosystem (website libraries, Rust libraries, GitHub Actions) with all the updates bundled together.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -5,18 +7,21 @@ updates:
     schedule:
       interval: monthly
     groups:
-      npm-minor-and-patch:
-        update-types: [minor, patch]
+      npm:
+        patterns: ["*"]
 
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
       interval: monthly
     groups:
-      cargo-minor-and-patch:
-        update-types: [minor, patch]
+      cargo:
+        patterns: ["*"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
