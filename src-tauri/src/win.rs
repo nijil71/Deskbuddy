@@ -26,7 +26,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::Shell::{
-    FOLDERID_Downloads, FOLDERID_Pictures, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+    FOLDERID_Downloads, FOLDERID_Pictures, FOLDERID_Screenshots, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
     ShellExecuteW, SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -116,6 +116,11 @@ fn known_folder(id: &windows::core::GUID, fallback: &str) -> std::path::PathBuf 
 /// The user's real Pictures folder (follows OneDrive / folder redirection).
 pub fn pictures_dir() -> std::path::PathBuf {
     known_folder(&FOLDERID_Pictures, "Pictures")
+}
+
+/// Where Windows / the Snipping Tool auto-saves screenshots (e.g. OneDrive\Pictures\Screenshots 1).
+pub fn screenshots_dir() -> std::path::PathBuf {
+    known_folder(&FOLDERID_Screenshots, "Pictures\\Screenshots")
 }
 
 /// The user's real Downloads folder.

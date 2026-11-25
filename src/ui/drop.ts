@@ -245,6 +245,22 @@ async function runConvert(b: Buddy, ui: Overlay, paths: string[], to: string) {
 
 // ------------------------------------------------------------------ download (yt-dlp)
 
+/** Offer Video / MP3 for a link: from the menu, or right after you copied one (`auto`). */
+export async function offerDownload(b: Buddy, ui: Overlay, url: string, auto?: { notNow: () => void }) {
+  const ok = await invoke<boolean>("ytdlp_available").catch(() => false);
+  const name = niceName(url);
+  if (!ok) { if (!auto) explainMissing(ui, name, "yt-dlp"); return; }
+  if (auto && ui.bubbleVisible) return; // never push aside something already showing
+  ui.say(`${ic("film")} Download <b>${esc(short(name, 34))}</b>?`, {
+    html: true, ms: auto ? 9000 : 0,
+    buttons: [
+      { label: "Video", primary: true, fn: () => void download(b, ui, url, false) },
+      { label: "MP3", fn: () => void download(b, ui, url, true) },
+      { label: auto ? "Not now" : "Cancel", fn: () => auto?.notNow() },
+    ],
+  });
+}
+
 let downloading = false;
 async function download(b: Buddy, ui: Overlay, url: string, audio: boolean) {
   if (downloading) { ui.say("One download at a time — still on the last one ⏳", { ms: 2500 }); return; }

@@ -543,6 +543,11 @@ fn clipboard_worker(app: AppHandle, st: Arc<Shared>) {
             }
             let preview: String = text.chars().take(80).collect();
             let _ = app.emit("clipboard", preview);
+            // A single copied link (full, untruncated): the UI may offer to download it.
+            let t = text.trim();
+            if (t.starts_with("https://") || t.starts_with("http://")) && t.len() < 2048 && !t.contains(char::is_whitespace) {
+                let _ = app.emit_to("main", "clipboard-link", t.to_string());
+            }
         }
     });
 }

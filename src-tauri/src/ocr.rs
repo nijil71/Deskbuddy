@@ -81,6 +81,7 @@ pub fn ocr_clipboard() -> Result<String, String> {
 /// Open the snipping overlay, wait (up to 90 s) for a new image on the clipboard, OCR it.
 pub fn ocr_snip() -> Result<String, String> {
     let seq = crate::win::clipboard_seq();
+    let began = std::time::SystemTime::now();
     if !crate::win::shell_open("ms-screenclip:") {
         return Err("Couldn't open the snipping tool".into());
     }
@@ -88,11 +89,37 @@ pub fn ocr_snip() -> Result<String, String> {
     while start.elapsed() < Duration::from_secs(90) {
         std::thread::sleep(Duration::from_millis(250));
         if crate::win::clipboard_seq() != seq {
+            // The Snipping Tool also auto-saves the snip as a file; we only wanted the text.
+            std::thread::spawn(move || remove_saved_snip(&crate::win::screenshots_dir(), began, Duration::from_secs(6)));
             std::thread::sleep(Duration::from_millis(200)); // let the snipping tool finish writing
             return ocr_clipboard().map_err(|_| "That wasn't a snip — cancelled".to_string());
         }
     }
     Err("No snip taken".into())
+}
+
+/// Delete the one screenshot file the Snipping Tool saved for our snip: an image in the
+/// Screenshots folder created after `since`. Waits up to `wait` for it to appear. Never touches
+/// anything older, and deletes at most one file.
+fn remove_saved_snip(dir: &Path, since: std::time::SystemTime, wait: Duration) -> Option<PathBuf> {
+    let since = since - Duration::from_secs(1); // filesystem timestamp granularity
+    let start = Instant::now();
+    while start.elapsed() < wait {
+        let newest = std::fs::read_dir(dir).ok()?.flatten()
+            .filter(|e| {
+                let n = e.file_name().to_string_lossy().to_ascii_lowercase();
+                n.ends_with(".png") || n.ends_with(".jpg") || n.ends_with(".jpeg")
+            })
+            .filter_map(|e| Some((e.metadata().ok()?.created().ok()?, e.path())))
+            .filter(|(t, _)| *t >= since)
+            .max_by_key(|(t, _)| *t);
+        if let Some((_, p)) = newest {
+            std::thread::sleep(Duration::from_millis(300)); // let the tool finish writing it
+            return std::fs::remove_file(&p).ok().map(|_| p);
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    None
 }
 
 #[cfg(test)]
@@ -115,6 +142,23 @@ mod tests {
         assert!(ok && out.is_file());
         let text = ocr_file(&out.to_string_lossy()).unwrap();
         assert!(text.contains("Hello") && text.contains("Deskbud") && text.contains("42"), "got {text:?}");
+    }
+
+    #[test]
+    fn removes_only_the_new_snip() {
+        let d = std::env::temp_dir().join("deskbud-snip-test");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let old = d.join("Screenshot old.png");
+        std::fs::write(&old, b"x").unwrap();
+        std::thread::sleep(Duration::from_millis(1600));
+        let since = std::time::SystemTime::now();
+        assert!(remove_saved_snip(&d, since, Duration::from_millis(600)).is_none(), "nothing new → nothing deleted");
+        let new = d.join("Screenshot new.png");
+        let new2 = new.clone();
+        std::thread::spawn(move || { std::thread::sleep(Duration::from_millis(400)); std::fs::write(new2, b"y").unwrap(); });
+        assert_eq!(remove_saved_snip(&d, since, Duration::from_secs(3)), Some(new.clone()));
+        assert!(old.is_file() && !new.exists());
     }
 
     #[test]

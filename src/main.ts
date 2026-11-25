@@ -8,7 +8,8 @@ import { registerCore } from "./buddy/anims/core";
 import { registerLife } from "./buddy/anims/life";
 import { registerWork } from "./buddy/anims/work";
 import { registerPlay } from "./buddy/anims/play";
-import { setupDrop } from "./ui/drop";
+import { offerDownload, setupDrop } from "./ui/drop";
+import { isVideoLink } from "./shared/links";
 import { checkForUpdate, startUpdateChecks } from "./services/update";
 import { setupClaude } from "./services/claude";
 import { ocrSnip } from "./ui/ocr";
@@ -36,6 +37,9 @@ buddy.say = (text, opts = {}) => {
 };
 
 let settings: Settings;
+/** The video link you last copied (cleared when you copy anything else). */
+let copiedVideo = "";
+const offeredLinks = new Set<string>();
 let brain: Brain;
 let voice: Voice;
 const mem = new Remember();
@@ -215,6 +219,7 @@ function menuModel(): MenuModel {
       { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
       { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
       { label: "Copy text", icon: "copy", fn: () => void ocrSnip(buddy, ui) },
+      ...(copiedVideo ? [{ label: "Download copied link", icon: "download", fn: () => void offerDownload(buddy, ui, copiedVideo) }] : []),
       { label: "My day", icon: "comic", fn: panel("day") },
       { label: "Launcher", icon: "rocket", fn: panel("launcher") },
       { label: asleep ? "Wake up" : "Nap", icon: asleep ? "sun" : "moon", fn: () => asleep ? buddy.play("wakeUp", undefined, { force: true }) : buddy.play("sleep", { sitting: true }, { force: true }) },
@@ -314,7 +319,16 @@ async function boot() {
   await listen("nudge-request", () => brain.onNudgeRequest());
   await listen("nudge-done", () => brain.onNudgeDone());
   await listen<SysStats>("sysmon", (e) => brain.onSysmon(e.payload));
-  await listen<string>("clipboard", (e) => brain.onClipboard(e.payload));
+  await listen<string>("clipboard", (e) => { copiedVideo = ""; brain.onClipboard(e.payload); });
+  // You copied a video link: offer to download it (once per link; "Not now" twice turns this off).
+  await listen<string>("clipboard-link", (e) => {
+    const url = e.payload;
+    if (!isVideoLink(url)) return;
+    copiedVideo = url;
+    if (offeredLinks.has(url) || settings.dnd || voice.inCall || voice.muted("dl-offer")) return;
+    offeredLinks.add(url);
+    void offerDownload(buddy, ui, url, { notNow: () => voice.dismissed("dl-offer") });
+  });
   await listen<Fg>("fg", (e) => brain.onForeground(e.payload));
   await listen<Media | null>("media", (e) => brain.onMedia(e.payload));
   await listen<boolean>("visibility", (e) => { brain.userVisible = e.payload; buddy.setHidden(!e.payload); });
