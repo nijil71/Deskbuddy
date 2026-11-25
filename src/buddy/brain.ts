@@ -12,7 +12,8 @@ import { Focus, chime, fmt } from "../services/focus";
 import { fetchWeather, weatherText, type Weather } from "../services/weather";
 import { fetchNews, pickStory, matches, hnThread, ago, type Story } from "../services/news";
 import { icon } from "../shared/icons";
-import { ActivityLog, standup } from "../services/activity";
+import { ActivityLog, standup, thingOf } from "../services/activity";
+import { WorkStateTracker, isHelp, type StateOut } from "./state";
 import { phase, sinceStart, shiftLen, mealGuess, mealWord, greetWord, type Shift } from "../shared/shift";
 import { patchSettings, today, type Settings } from "../shared/settings";
 import { Playtime } from "./playtime";
@@ -81,6 +82,9 @@ export class Brain {
   private stopped = false;
   /** touch, cursor games, typing along */
   play: Playtime;
+  /** what you're doing right now + how interruptible you are (observing only, for now) */
+  work = new WorkStateTracker();
+  workNow: StateOut | null = null;
 
   constructor(private b: Buddy, private ui: Overlay, public s: Settings, private mem: Remember, private voice: Voice) {
     this.focus = new Focus(s.focus);
@@ -281,6 +285,7 @@ export class Brain {
   onPresence(p: Presence) {
     const prev = this.presence;
     this.presence = p;
+    this.work.presence(p.idleMs, p.inCall, p.locked, Date.now());
     this.voice.inCall = p.inCall;
     this.voice.idleMs = p.idleMs;
     this.activity.presence(p.idleMs, p.inCall, p.locked);
@@ -334,6 +339,7 @@ export class Brain {
     this.fg = f;
     const cat = categorize(f.exe, f.title);
     this.activity.foreground(f.exe, f.title, cat);
+    this.work.fg(cat, thingOf(f.exe, f.title, this.s.activity.ignore)?.name ?? null, isHelp(f.exe, f.title), Date.now());
     const catChanged = cat !== this.category;
     this.category = cat;
     const b = this.b, w = b.world;
@@ -392,6 +398,19 @@ export class Brain {
   onClipboard(preview: string) {
     if (!this.calm || this.b.priority >= 2) return;
     if (this.cooldown("clip", 25_000)) this.react("catchPaper", { text: preview.length > 40 ? preview.slice(0, 40) + "…" : preview }, "clip");
+  }
+
+  /** Keystrokes from Rust (count + Backspace/Delete count per 250 ms). */
+  onKeys(n: number, corr: number) {
+    this.work.keys(n, corr, Date.now());
+    if (n > 0) this.play.onKeys(n);
+  }
+
+  /** ≈1 s: re-evaluate what you're doing. Cheap (a few array scans over ≤15 min of buckets). */
+  workTick() {
+    const d = new Date();
+    this.workNow = this.work.tick(Date.now(), d.getHours() * 60 + d.getMinutes(), this.s.keep.endMin ?? null);
+    return this.workNow;
   }
 
   // ------------------------------------------------------------------ scheduler (every 20s)
@@ -579,6 +598,7 @@ export class Brain {
       this.ui.say(`Focus mode: ${this.s.focus.work} min. I'll keep quiet 🎧`, { ms: 3000 });
     } else if (next === "short" || next === "long") {
       chime("down");
+      this.work.focusBreak(Date.now());
       if (prev === "work") this.activity.count("focus");
       this.b.mood.nudge(0.1);
       this.ui.setRing(true, 0, "", "break");

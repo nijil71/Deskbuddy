@@ -1,9 +1,11 @@
 // Two bits of input plumbing for the interactive buddy:
 //
 //  • Typing rhythm: a Raw Input sink counts *how many* keys go down so the buddy can type along.
-//    It never looks at which key it is beyond dropping auto-repeat, never stores anything, and only
-//    emits a number every 250 ms. Injected input (our own F15 keep-alive, automation tools) is
-//    ignored. Off → the raw-input registration is removed, so Windows stops sending us anything.
+//    The only key it tells apart is "correction" (Backspace / Delete), counted separately so the
+//    buddy can notice when you're fighting with something. Nothing else about which key is kept,
+//    nothing is stored, and it only emits two numbers every 250 ms. Injected input (our own F15
+//    keep-alive, automation tools) is ignored. Off → the raw-input registration is removed, so
+//    Windows stops sending us anything.
 //
 //  • Dropped files: WebView2's HTML drag-and-drop gives the page File objects without paths.
 //    The page hands them back through `postMessageWithAdditionalObjects`, and WebView2 reveals the
@@ -25,7 +27,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 static KEYS: AtomicU32 = AtomicU32::new(0);
+static CORR: AtomicU32 = AtomicU32::new(0); // Backspace / Delete presses (auto-repeat included: holding it is a big correction)
 static HELD: AtomicU16 = AtomicU16::new(0); // last key down (only to drop auto-repeat)
+const VK_BACK: u16 = 0x08;
+const VK_DELETE: u16 = 0x2E;
 
 unsafe extern "system" fn wndproc(h: HWND, m: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if m == WM_INPUT {
@@ -46,8 +51,13 @@ unsafe extern "system" fn wndproc(h: HWND, m: u32, wp: WPARAM, lp: LPARAM) -> LR
             let up = (kb.Flags as u32) & RI_KEY_BREAK != 0;
             if up {
                 let _ = HELD.compare_exchange(kb.VKey, 0, Ordering::Relaxed, Ordering::Relaxed);
-            } else if HELD.swap(kb.VKey, Ordering::Relaxed) != kb.VKey {
-                KEYS.fetch_add(1, Ordering::Relaxed);
+            } else {
+                if kb.VKey == VK_BACK || kb.VKey == VK_DELETE {
+                    CORR.fetch_add(1, Ordering::Relaxed);
+                }
+                if HELD.swap(kb.VKey, Ordering::Relaxed) != kb.VKey {
+                    KEYS.fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
     }
@@ -64,7 +74,8 @@ fn register(hwnd: HWND, on: bool) -> bool {
     unsafe { RegisterRawInputDevices(&[dev], std::mem::size_of::<RAWINPUTDEVICE>() as u32).is_ok() }
 }
 
-/// Counts keystrokes while `on` and the buddy is `visible`; emits "keys" (count per 250 ms).
+/// Counts keystrokes while `on` and the buddy is `visible`; emits "keys" as
+/// `[keys, corrections]` per 250 ms.
 pub fn typing_worker(app: AppHandle, st: Arc<crate::Shared>) {
     std::thread::spawn(move || unsafe {
         let class = w!("DeskbudKeys");
@@ -86,8 +97,9 @@ pub fn typing_worker(app: AppHandle, st: Arc<crate::Shared>) {
                     registered = want;
                 }
                 let n = KEYS.swap(0, Ordering::Relaxed);
-                if n > 0 && registered {
-                    let _ = app.emit_to("main", "keys", n);
+                let c = CORR.swap(0, Ordering::Relaxed);
+                if (n > 0 || c > 0) && registered {
+                    let _ = app.emit_to("main", "keys", (n, c));
                 }
                 continue;
             }

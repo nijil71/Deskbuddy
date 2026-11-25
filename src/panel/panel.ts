@@ -634,7 +634,7 @@ function labTab() {
     ["Work", [["__nudge", "dot", "Keep-alive nudge"], ["focus", "laptop", "Focus"], ["breakTime", "leaf", "Break"], ["drink", "droplet", "Water"], ["eyeBreak", "glasses", "Eye break", { secs: 6 }], ["posture", "chair", "Posture"], ["holdSign", "sign", "Sign", { text: "Standup!" }], ["holdNote", "note", "Note", { text: "Buy milk" }]]],
     ["System", [["sweaty", "thermo", "High CPU", { cpu: 93 }], ["heavyBox", "box", "High RAM", { mem: 94 }], ["lowBattery", "batteryLow", "Low battery", { pct: 12 }], ["charging", "charging", "Charging"], ["camera", "camera", "Camera"], ["catchPaper", "paper", "Clipboard", { text: "copied text" }], ["__weather", "cloud", "Weather"], ["weather", "rain", "Rain", { kind: "rain", text: "Rainy!" }], ["weather", "snow", "Snow", { kind: "snow", text: "Snow!" }], ["weather", "sun", "Sunny", { kind: "sun", text: "Sunny!" }]]],
   ];
-  view.innerHTML = `<p class="muted">Tap any animation to see your buddy perform it.</p>` + groups.map(([g, list]) => `
+  view.innerHTML = workCard() + `<p class="muted">Tap any animation to see your buddy perform it.</p>` + groups.map(([g, list]) => `
     <section class="card"><h3>${g}</h3><div class="labgrid">
       ${list.map(([a, ic, l, args], i) => `<button class="chip" data-a="${a}" data-args='${args ? esc(JSON.stringify(args)) : ""}' data-i="${i}">${icon(ic)}${l}</button>`).join("")}
     </div></section>`).join("");
@@ -648,6 +648,54 @@ function labTab() {
     lab(a, args);
     b.classList.add("pop"); setTimeout(() => b.classList.remove("pop"), 250);
   }));
+  watchWork();
+}
+
+// ------------------------------------------------------------------ work state (live, for tuning)
+
+const WS_LABEL: Record<string, string> = {
+  deep: "Deep focus", working: "Working", reading: "Reading", stuck: "Stuck", between: "Between tasks",
+  windingDown: "Winding down", idle: "Paused", away: "Away", call: "In a call",
+};
+
+function workCard() {
+  return `<section class="card" id="ws"><h3><span class="live"></span>What I think you're doing</h3>
+    <div class="ws-now"><b id="ws-state">…</b><span id="ws-for" class="muted"></span></div>
+    <div class="ws-meter" title="How OK it is to interrupt you"><i id="ws-score"></i></div>
+    <p class="muted" id="ws-why">Waiting for the buddy…</p>
+    <div class="stats" id="ws-f"></div>
+    <div class="row gap"><b class="grow" style="font-size:12px">Recent changes</b><button class="mini" id="ws-copy">${icon("clipboard")} Copy log</button></div>
+    <ol class="ws-log" id="ws-log"></ol>
+  </section>`;
+}
+
+function watchWork() {
+  const ping = () => emit("workstate-watch").catch(() => {});
+  ping();
+  const hb = window.setInterval(ping, 2000);
+  const ago = (t: number) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+  const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  let lastLog: { t: number; from: string; to: string; why: string }[] = [];
+  const un = listen<any>("workstate", (e) => {
+    const w = e.payload, f = w.f;
+    if (!$("#ws")) return;
+    $("#ws-state").textContent = WS_LABEL[w.state] ?? w.state;
+    $("#ws-for").textContent = ` for ${ago(w.since)}`;
+    const sc = $("#ws-score"); sc.style.width = `${Math.round(w.score * 100)}%`; sc.dataset.lvl = w.score >= 0.6 ? "hi" : w.score >= 0.3 ? "mid" : "lo";
+    $("#ws-why").textContent = `${w.why}${w.anchor ? ` · on ${w.anchor.replace(/^[a-z]+:/, "")}` : ""}`;
+    $("#ws-f").innerHTML = [
+      [f.kpm5.toFixed(0), "keys/min"], [`${Math.round(f.corr5 * 100)}%`, "corrections"], [`${f.active10}/10`, "typing min"],
+      [f.switches10, "switches"], [f.pingPong10, "help hops"], [`${Math.round(f.dwellMin)}m`, "on this"],
+    ].map(([v, l]) => `<div><b>${v}</b><small>${l}</small></div>`).join("");
+    lastLog = w.log;
+    $("#ws-log").innerHTML = w.log.slice().reverse().slice(0, 8)
+      .map((l: any) => `<li><span>${hhmm(l.t)}</span> ${esc(WS_LABEL[l.to] ?? l.to)} <small>${esc(l.why)}</small></li>`).join("");
+  });
+  $("#ws-copy").onclick = () => {
+    const txt = lastLog.map((l) => `${new Date(l.t).toISOString()}\t${l.from} -> ${l.to}\t${l.why}`).join("\n");
+    navigator.clipboard.writeText(txt).then(() => toast("Log copied"), () => toast("Couldn't copy"));
+  };
+  cleanup.push(() => { clearInterval(hb); un.then((f) => f()); });
 }
 
 // ------------------------------------------------------------------ boot

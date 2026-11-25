@@ -290,7 +290,14 @@ async function boot() {
   pushKeepalive(settings);
 
   await listen<[number, number]>("cursor", (e) => { ui.onCursor(e.payload[0], e.payload[1]); buddy.setCursor(e.payload[0], e.payload[1]); brain.play.onCursor(e.payload[0], e.payload[1]); });
-  await listen<number>("keys", (e) => brain.play.onKeys(e.payload));
+  await listen<[number, number]>("keys", (e) => brain.onKeys(e.payload[0], e.payload[1]));
+  // what you're doing right now; the Lab tab can watch it live (heartbeat, so a closed panel stops the feed)
+  let workWatchUntil = 0;
+  await listen("workstate-watch", () => { workWatchUntil = Date.now() + 6000; });
+  setInterval(() => {
+    const w = brain.workTick();
+    if (Date.now() < workWatchUntil) emit("workstate", { ...w, log: brain.work.log.slice(-25), totals: brain.work.totals, boundaries: brain.work.boundaries }).catch(() => {});
+  }, 1000);
   await setupDrop(buddy, ui, () => brain.onPoke(0.04));
   invoke("set_typing", { on: settings.play.typing }).catch(() => {});
   await listen<Presence>("presence", (e) => brain.onPresence(e.payload));
