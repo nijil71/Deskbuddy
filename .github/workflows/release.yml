@@ -17,7 +17,7 @@ jobs:
       # Turns off the developer-only "local releases folder" update source (src-tauri/src/update.rs).
       DESKBUD_RELEASE_BUILD: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check that the tag matches the app version
         shell: bash
