@@ -27,6 +27,16 @@ export class Focus {
     else if (action === "skip") this.finish();
   }
 
+  /** Resume a timer saved before a restart (no chime, no phase change). Drops one that ran out. */
+  restore(st: FocusState | null | undefined): boolean {
+    if (!st || st.phase === "idle" || (!st.paused && st.endsAt <= Date.now())) return false;
+    this.s = { ...st };
+    clearInterval(this.timer);
+    this.timer = window.setInterval(() => this.tick(), 1000);
+    this.broadcast();
+    return true;
+  }
+
   get running() { return this.s.phase !== "idle"; }
   get working() { return this.s.phase === "work" && !this.s.paused; }
 

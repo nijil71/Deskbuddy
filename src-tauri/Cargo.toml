@@ -51,6 +51,14 @@ features = [
   "Globalization",
 ]
 
+# Dev builds: line numbers for our own code, no debug info for dependencies. Builds come out
+# several times smaller and link faster (the windows crate's full debug info alone is GBs).
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 codegen-units = 1
 lto = true

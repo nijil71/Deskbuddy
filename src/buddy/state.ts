@@ -39,6 +39,16 @@ export interface StateOut {
 
 export interface Transition { t: number; from: WorkState; to: WorkState; why: string; }
 
+/** Serialized tracker (see WorkStateTracker.snapshot). Plain JSON. */
+export interface TrackerSnap {
+  v: 1; at: number;
+  buckets: { t: number; k: number; c: number }[]; fgs: { t: number; key: string; cat: string; help: boolean }[];
+  lastKeyT: number; idleMs: number; idleT: number; inCall: boolean; locked: boolean; wasAway: boolean;
+  anchor: string; anchorSince: number; cand: string; candSince: number; runStart: number; runFired: boolean;
+  boundary: Boundary | null; boundaryT: number; stuckLatch: boolean; deepLatch: boolean;
+  cur: WorkState; curSince: number; log: Transition[]; totals: Partial<Record<WorkState, number>>; boundaries: number; lastTick: number;
+}
+
 /** Tunables. Exported so tests (and later, per-user tuning) can see them. */
 export const T = {
   awayIdle: 5 * 60_000,
@@ -100,6 +110,29 @@ export class WorkStateTracker {
   totals: Partial<Record<WorkState, number>> = {};
   boundaries = 0;
   private lastTick = 0;
+
+  // ------------------------------------------------------------------ memory across restarts
+
+  /** Everything the tracker knows, as plain JSON (saved so a restart/update doesn't forget it). */
+  snapshot(t: number): TrackerSnap {
+    return {
+      v: 1, at: t,
+      buckets: this.buckets, fgs: this.fgs.slice(-200), lastKeyT: this.lastKeyT, idleMs: this.idleMs, idleT: this.idleT,
+      inCall: this.inCall, locked: this.locked, wasAway: this.wasAway,
+      anchor: this.anchor, anchorSince: this.anchorSince, cand: this.cand, candSince: this.candSince,
+      runStart: this.runStart, runFired: this.runFired, boundary: this.boundary, boundaryT: this.boundaryT,
+      stuckLatch: this.stuckLatch, deepLatch: this.deepLatch, cur: this.cur, curSince: this.curSince,
+      log: this.log.slice(-50), totals: this.totals, boundaries: this.boundaries, lastTick: this.lastTick,
+    };
+  }
+
+  /** Pick up where a previous run left off, if that was recent (default: within 30 min). */
+  restore(s: TrackerSnap | null | undefined, t: number, maxAgeMs = 30 * MIN): boolean {
+    if (!s || s.v !== 1 || !(t - s.at >= 0 && t - s.at <= maxAgeMs)) return false;
+    const { v: _v, at: _at, ...rest } = s;
+    Object.assign(this, structuredClone(rest));
+    return true;
+  }
 
   // ------------------------------------------------------------------ inputs
 

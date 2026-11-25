@@ -1,13 +1,13 @@
-// Local self-update: after `npm run release` builds a new installer into this project's
-// target/release/bundle/nsis folder, the running buddy notices the higher version and offers to
-// install it. No server, no signing — the folder is baked in at compile time.
+// Local self-update: `npm run release` builds a new installer and copies it into <project>/releases;
+// the running buddy notices the higher version and offers to install it. No server, no signing —
+// the folder is baked in at compile time (independent of where Cargo keeps its build cache).
 
 use serde::Serialize;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-const BUNDLE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "\\target\\release\\bundle\\nsis");
+const BUNDLE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "\\..\\releases");
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

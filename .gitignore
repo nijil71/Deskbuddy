@@ -7,6 +7,10 @@ dist/
 
 # Tauri / Rust build output
 src-tauri/target/
+src-tauri/.cargo/config.toml
+
+# installers built by `npm run release` (the buddy updates from here)
+releases/
 src-tauri/gen/schemas/
 
 # logs & local env

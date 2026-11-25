@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Buddy } from "../buddy/buddy";
 import type { Overlay } from "../ui/overlay";
+import { flushBeforeQuit } from "./session";
 
 interface LocalUpdate { version: string; current: string; path: string }
 
@@ -35,6 +36,7 @@ export async function checkForUpdate(b: Buddy, ui: Overlay, manual = false) {
 
 async function install(b: Buddy, ui: Overlay, u: LocalUpdate) {
   b.play("wave", { text: `Updating to v${u.version}… brb 👋` }, { force: true });
+  await flushBeforeQuit(); // save short-term memory before the installer closes us
   try { await invoke("install_local_update", { path: u.path }); }
   catch (e) {
     offered = "";

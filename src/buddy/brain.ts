@@ -14,6 +14,8 @@ import { fetchNews, pickStory, randomStory, matches, hnThread, ago, type Story }
 import { icon } from "../shared/icons";
 import { ActivityLog, standup, thingOf } from "../services/activity";
 import { WorkStateTracker, isHelp, type StateOut } from "./state";
+import type { Session } from "../services/session";
+import { route, sameMon, type Mon } from "./screens";
 import { phase, sinceStart, shiftLen, mealGuess, mealWord, greetWord, type Shift } from "../shared/shift";
 import { patchSettings, today, type Settings } from "../shared/settings";
 import { Playtime } from "./playtime";
@@ -100,6 +102,17 @@ export class Brain {
     b.mood.v = mem.m.mood.v;
     b.mood.e = mem.m.mood.e;
     b.mood.shift = this.shift;
+  }
+
+  /** Short-term memory to carry across a restart (see services/session.ts). */
+  sessionSnapshot(): Session {
+    const now = Date.now();
+    return { at: now, focus: { ...this.focus.s }, work: this.work.snapshot(now) };
+  }
+  restoreSession(s: Session | null) {
+    if (!s || !(Date.now() - s.at <= 30 * 60_000)) return;
+    this.work.restore(s.work, Date.now());
+    if (this.focus.restore(s.focus) && this.focus.working) this.b.play("focus", undefined, { force: true });
   }
 
   get isAway() { return this.away; }
@@ -189,6 +202,9 @@ export class Brain {
     const opts: [number, () => [string, any?]][] = [
       [3 + (glum ? 2 : 0), () => [onWin ? "sit" : "idle", { dur: rand(6, 16) }]],
       [roam && !onWin ? 2 * (0.6 + e) : 0.4, () => ["walk", { x: rand(lo, hi), maxT: 12 }]],
+      // two screens: now and then, go and see what's happening on the other one
+      [roam && !onWin && this.multiScreen && Date.now() - (this.last.screen ?? 0) > 20 * 60_000 ? 0.6 : 0,
+        () => { setTimeout(() => void this.visitScreen(), 0); return ["lookAround"]; }],
       [1.2 + (glum ? 1.5 : 0) + (1 - e), () => ["sit", { dur: rand(10, 22) }]],
       [0.9, () => ["lookAround"]],
       [1.2 * hobby + (cat === "office" || cat === "mail" ? 0.8 : 0), () => ["read"]],
@@ -232,6 +248,65 @@ export class Brain {
       if (this.lookTimer) clearTimeout(this.lookTimer);
       this.lookTimer = window.setTimeout(() => { this.b.lookAt = null; this.lookTimer = 0; }, ms);
     }
+  }
+
+  // ------------------------------------------------------------------ two (or more) screens
+
+  private screenTrip = false;
+  /** The screen your foreground window is on, and since when. */
+  private attn: { mon: Mon | null; since: number } = { mon: null, since: 0 };
+
+  get multiScreen() { return this.b.world.monitors.length > 1; }
+
+  /** Walk to the next screen (or duck out and pop up there if the screens aren't side by side).
+   *  `to`: a specific screen; otherwise the nearest neighbour. */
+  async visitScreen(to?: Mon | null): Promise<boolean> {
+    const b = this.b, w = b.world;
+    if (this.screenTrip || !this.multiScreen || w.surface.kind !== "floor" || b.dragging || b.priority >= 2) return false;
+    const r = route(w.monitors, w.monitorAt(w.fx), to);
+    if (!r) return false;
+    this.screenTrip = true;
+    this.last.screen = Date.now();
+    const s = w.scale;
+    const inAir = () => ["jumpTo", "airborne", "land"].includes(b.actionName);
+    try {
+      if (r.kind === "walk") {
+        const d = r.dest.work;
+        const destX = r.dir > 0 ? d.x + rand(180, 420) * s : d.x + d.w - rand(180, 420) * s;
+        w.crossTo = r.dest;
+        // At the edge the floor can step up or down (different screen sizes, no taskbar there):
+        // the hop/drop interrupts the walk, so wait for the landing and carry on.
+        for (let i = 0; i < 5; i++) {
+          for (let k = 0; k < 40 && inAir(); k++) await sleep(100);
+          if (Math.abs(w.fx - destX) < 6 * s || w.surface.kind !== "floor") break;
+          if (i > 0 && b.priority >= 2) break; // something important came up
+          if (await b.play("walk", { x: destX, maxT: 40 }, { force: i === 0 })) break;
+        }
+      } else {
+        await b.play("hideDuck", undefined, { force: true });
+        const d = r.dest.work;
+        w.fx = d.x + d.w - rand(220, 480) * s;
+        w.fy = w.floorY(w.fx); w.vx = 0; w.vy = 0; w.surface = { kind: "floor" };
+        w.applyPosition(true);
+        await sleep(300);
+        await b.play("popUp", undefined, { force: true });
+      }
+      const arrived = sameMon(w.monitorAt(w.fx), r.dest);
+      if (arrived && b.priority < 2) void b.play("lookAround");
+      return arrived;
+    } finally {
+      w.crossTo = null;
+      this.screenTrip = false;
+    }
+  }
+
+  /** You've been working on the other screen for a while: go where you are. */
+  private maybeFollowYou() {
+    const b = this.b, w = b.world, a = this.attn, now = Date.now();
+    if (!this.multiScreen || !a.mon || this.away || this.hiddenByFullscreen || this.voice.mode === "quiet" || this.focus.working) return;
+    if (now - a.since < 90_000 || now - (this.last.screen ?? 0) < 10 * 60_000) return;
+    if (sameMon(w.monitorAt(w.fx), a.mon) || b.actionName === "sleep") return;
+    void this.visitScreen(a.mon);
   }
 
   private async climb() {
@@ -286,6 +361,7 @@ export class Brain {
   onPresence(p: Presence) {
     const prev = this.presence;
     this.presence = p;
+    this.maybeFollowYou();
     this.work.presence(p.idleMs, p.inCall, p.locked, Date.now());
     this.voice.inCall = p.inCall;
     this.voice.idleMs = p.idleMs;
@@ -338,6 +414,10 @@ export class Brain {
   onForeground(f: Fg) {
     const switched = !this.fg || this.fg.id !== f.id;
     this.fg = f;
+    if (f.rect.w > 0 && f.rect.h > 0) {
+      const m = this.b.world.monitorAt(f.rect.x + f.rect.w / 2, f.rect.y + f.rect.h / 2);
+      if (!sameMon(m, this.attn.mon)) this.attn = { mon: m, since: Date.now() };
+    }
     const cat = categorize(f.exe, f.title);
     this.activity.foreground(f.exe, f.title, cat);
     this.work.fg(cat, thingOf(f.exe, f.title, this.s.activity.ignore)?.name ?? null, isHelp(f.exe, f.title), Date.now());

@@ -19,7 +19,9 @@ npm run release            # bump the patch version (1.0.0 → 1.0.1) and build 
 npm run release -- minor   # or minor / major / an exact version like 2.0.0
 ```
 
-Within about 2 minutes the running buddy finds the new installer in `src-tauri/target/release/bundle/nsis/`. It holds up a sign saying **Update available** with an **Update** button. Clicking it installs the new version and relaunches. To check straight away, use tray → **Check for updates**. "Later" snoozes that version for 4 hours. Everything stays local: no server and no signing keys.
+The installer is copied into `releases/` (the newest 3 are kept). Within about 2 minutes the running buddy finds it there. It holds up a sign saying **Update available** with an **Update** button. Clicking it installs the new version and relaunches. To check straight away, use tray → **Check for updates**. "Later" snoozes that version for 4 hours. Everything stays local: no server and no signing keys.
+
+Rust's build cache (several GB) is kept outside the project, in `%LOCALAPPDATA%\cargo-target\deskbud`, so OneDrive doesn't sync it. That's set in the machine-local `src-tauri/.cargo/config.toml`, which isn't committed.
 
 ## What it does
 
@@ -39,6 +41,8 @@ Within about 2 minutes the running buddy finds the new installer in `src-tauri/t
 | **Claude Code** | Settings → Claude Code adds three hooks to `~/.claude/settings.json` (a backup is kept). When Claude finishes a task that took more than about 25 s, or needs your permission, the buddy tells you. It stays quiet if you're already in your terminal or editor. Only the project name and Claude's message are passed along, never your prompts. | Confetti when it's done, holds up a "Claude!" sign when you're needed |
 | **Copy text (OCR)** | Right-click → **Copy text** opens the snipping overlay. Snip anything and its text goes to your clipboard. The screenshot file the Snipping Tool auto-saves for that snip is deleted, since you only wanted the text. Dropped images get a **Copy text** button too. It uses the OCR engine built into Windows, so it works offline with nothing to install. | Reads the paper |
 | **Video downloads** | Copy (or drop) a YouTube, Vimeo, X, Instagram, TikTok, Reddit (and more) link and the buddy offers **Video** (MP4) or **MP3**. Pressing **Not now** twice stops the offer, and right-click → **Download copied link** still works. It saves to Downloads with live progress. Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) if installed (`winget install yt-dlp.yt-dlp`). | Magic wand, then confetti |
+| **Two screens** | With more than one monitor, the buddy walks across to the other screen, hopping up or dropping down when the floors are at different heights. If the screens aren't side by side, he ducks out of one and pops up on the other. He follows you when you've worked on the other screen for about 90 s (at most every 10 min, not in Quiet mode or during focus), sometimes wanders over on his own in Chill mode, and goes on request from right-click → **Go to other screen**. | Walks over, jumps up or drops down at the edge, looks around |
+| **Memory** | Long-term: notes, mood, days together, activity and settings live in `deskbud.json`, which is backed up daily (the last 7 days are kept in `backups\`) and restored automatically if it's ever missing or corrupt. Short-term: what you're doing right now, a running focus timer and today's work tracking are saved every 30 s and before quitting or updating, then restored if you restart within 30 minutes. | — |
 | **Notes** | Colored sticky notes that save automatically. | Holds the note up |
 | **Screenshot** | Opens the Windows snipping overlay. | Camera pose and flash |
 | **Weather** | Open-Meteo (no key). Set your city in Settings. | Umbrella and rain, snowflakes, sunglasses |

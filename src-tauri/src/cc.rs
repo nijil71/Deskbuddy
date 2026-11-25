@@ -40,7 +40,7 @@ pub fn hook_main(event: &str) {
 /// The one line we store per hook call. Only what the buddy shows: no prompts, no transcripts.
 fn event_line(event: &str, input: &str, ts: u64) -> Value {
     let v: Value = serde_json::from_str(input.trim_start_matches('\u{feff}').trim()).unwrap_or(Value::Null);
-    let project = v["cwd"].as_str().and_then(|c| Path::new(c).file_name()).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let project = v["cwd"].as_str().map(|c| project_name(Path::new(c))).unwrap_or_default();
     json!({
         "event": event,
         "project": project,
@@ -48,6 +48,13 @@ fn event_line(event: &str, input: &str, ts: u64) -> Value {
         "message": v["message"].as_str().unwrap_or(""),
         "ts": ts,
     })
+}
+
+/// The repo's folder name (Claude's cwd moves into subfolders like src-tauri\target\debug);
+/// falls back to the cwd's own name outside a git repo.
+fn project_name(cwd: &Path) -> String {
+    let root = cwd.ancestors().find(|d| d.join(".git").exists()).unwrap_or(cwd);
+    root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// Tail the events file and forward new lines to the UI.
@@ -170,6 +177,17 @@ mod tests {
         let v = event_line("notify", input, 5);
         assert_eq!(v, json!({"event":"notify","project":"proj-demo","session":"t1","message":"Needs permission","ts":5}));
         assert!(!v.to_string().contains("SECRET"));
+    }
+
+    #[test]
+    fn project_is_the_repo_not_the_subfolder() {
+        let root = std::env::temp_dir().join("deskbud-cc-proj").join("MyRepo");
+        let _ = std::fs::remove_dir_all(root.parent().unwrap());
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("src-tauri/target/debug")).unwrap();
+        assert_eq!(project_name(&root.join("src-tauri/target/debug")), "MyRepo");
+        assert_eq!(project_name(&root), "MyRepo");
+        assert_eq!(project_name(Path::new("C:\\no-repo-here\\xyz")), "xyz");
     }
 
     #[test]

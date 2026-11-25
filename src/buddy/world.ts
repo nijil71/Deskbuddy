@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import { CX, GROUND } from "./rig";
+import { monitorAt as findMonitor } from "./screens";
 
 export interface Rect { x: number; y: number; w: number; h: number; }
 export interface Monitor { bounds: Rect; work: Rect; scale: number; primary: boolean; }
@@ -52,16 +53,11 @@ export class World {
   }
 
   monitorAt(x: number, y = this.fy - 5): Monitor {
-    let best = this.monitors[0];
-    let bestD = Infinity;
-    for (const m of this.monitors) {
-      const b = m.bounds;
-      if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) return m;
-      const d = Math.abs(x - (b.x + b.w / 2)) + Math.abs(y - (b.y + b.h / 2));
-      if (d < bestD) { bestD = d; best = m; }
-    }
-    return best ?? { bounds: { x: 0, y: 0, w: 1920, h: 1080 }, work: { x: 0, y: 0, w: 1920, h: 1040 }, scale: 1, primary: true };
+    return findMonitor(this.monitors, x, y) ?? { bounds: { x: 0, y: 0, w: 1920, h: 1080 }, work: { x: 0, y: 0, w: 1920, h: 1040 }, scale: 1, primary: true };
   }
+
+  /** While walking to another screen: the screen we're heading to (widens range()). */
+  crossTo: Monitor | null = null;
 
   floorY(x = this.fx) {
     const m = this.monitorAt(x);
@@ -80,6 +76,10 @@ export class World {
     const pad = 70 * this.scale;
     if (this.surface.kind === "window") return [this.surface.x0 + 30 * this.scale, this.surface.x1 - 30 * this.scale];
     const w = this.monitorAt(this.fx).work;
+    if (this.crossTo) {
+      const d = this.crossTo.work;
+      return [Math.min(w.x, d.x) + pad, Math.max(w.x + w.w, d.x + d.w) - pad];
+    }
     return [w.x + pad, w.x + w.w - pad];
   }
 

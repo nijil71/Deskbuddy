@@ -641,7 +641,7 @@ async function settings() {
 
 function labTab() {
   const groups: [string, [string, string, string, unknown?][]][] = [
-    ["Moves", [["walk", "walk", "Walk"], ["__throw", "throw", "Throw"], ["__climb", "mountain", "Climb window"], ["peek", "eye", "Peek"], ["turn", "turn", "Turn"], ["lookAround", "search", "Look around"], ["dizzy", "star", "Dizzy"]]],
+    ["Moves", [["walk", "walk", "Walk"], ["__throw", "throw", "Throw"], ["__climb", "mountain", "Climb window"], ["__screen", "monitor", "Other screen"], ["peek", "eye", "Peek"], ["turn", "turn", "Turn"], ["lookAround", "search", "Look around"], ["dizzy", "star", "Dizzy"]]],
     ["Play", [["boing", "sparkles", "Hair boing"], ["fixGlasses", "glasses", "Glasses"], ["boop", "heart", "Boop"], ["tickle", "faceHappy", "Tickle"], ["hop", "arrowUp", "Hop"], ["grumpy", "faceMeh", "Grumpy", { text: "Hey! Enough poking" }], ["pounce", "pointer", "Pounce", { x: 0 }], ["pant", "faceSmile", "Pant"], ["eager", "hand", "Eager"], ["typeAlong", "laptop", "Type along"]]],
     ["Feelings", [["wave", "hand", "Wave", { text: "Hello!" }], ["celebrate", "party", "Celebrate", { text: "Woohoo!", hat: true }], ["pet", "heart", "Pet"], ["poke", "pointer", "Poke"], ["yawn", "moon", "Yawn"], ["stretch", "stretch", "Stretch"], ["sleep", "zzz", "Sleep", { sitting: true }], ["wakeUp", "clock", "Wake"], ["shh", "mute", "Shh"], ["think", "bulb", "Think"]]],
     ["Hobbies", [["read", "book", "Read"], ["juggle", "juggle", "Juggle"], ["music", "headphones", "Music"], ["doodle", "pencil", "Doodle"], ["yoyo", "yoyo", "Yo-yo"], ["coffee", "coffee", "Coffee"], ["magic", "wand", "Magic"], ["news", "news", "Newspaper"], ["__news", "news", "HN headlines"], ["holdPhone", "phone", "Phone", { text: "Scrolling…" }]]],

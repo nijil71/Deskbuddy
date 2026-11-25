@@ -12,6 +12,7 @@ import { offerDownload, setupDrop } from "./ui/drop";
 import { isVideoLink } from "./shared/links";
 import { checkForUpdate, startUpdateChecks } from "./services/update";
 import { setupClaude } from "./services/claude";
+import { flushBeforeQuit, loadSession, onBeforeQuit, saveSession } from "./services/session";
 import { ocrSnip } from "./ui/ocr";
 import { Brain, type Presence, type SysStats, type Fg, type Media } from "./buddy/brain";
 import { Voice } from "./buddy/voice";
@@ -219,6 +220,7 @@ function menuModel(): MenuModel {
       { label: "Weather", icon: "cloud", fn: () => brain.showWeather().catch(oops("check the weather")) },
       { label: "News", icon: "news", fn: () => brain.showNews().catch(oops("get the news")) },
       { label: "Copy text", icon: "copy", fn: () => void ocrSnip(buddy, ui) },
+      ...(buddy.world.monitors.length > 1 ? [{ label: "Go to other screen", icon: "monitor", fn: () => void brain.visitScreen() }] : []),
       ...(copiedVideo ? [{ label: "Download copied link", icon: "download", fn: () => void offerDownload(buddy, ui, copiedVideo) }] : []),
       { label: "My day", icon: "comic", fn: panel("day") },
       { label: "Launcher", icon: "rocket", fn: panel("launcher") },
@@ -290,6 +292,12 @@ async function boot() {
   const gap = mem.startSession();
   voice = new Voice(ui, settings, mem.m, mem.save);
   brain = new Brain(buddy, ui, settings, mem, voice);
+  // Short-term memory: pick up where we left off before a restart/update, and keep saving it.
+  brain.restoreSession(await loadSession().catch(() => null));
+  const saveNow = () => saveSession(brain.sessionSnapshot()).catch(() => {});
+  onBeforeQuit(saveNow);
+  setInterval(saveNow, 30_000);
+  await listen("before-quit", () => void flushBeforeQuit());
   brain.activity.on = settings.activity.on; brain.activity.ignore = settings.activity.ignore;
   await brain.activity.load();
   // the panel asks for fresh numbers / to forget a day; the diary lives here, so we do the writing
@@ -312,7 +320,6 @@ async function boot() {
   await setupClaude({
     b: buddy, ui,
     dnd: () => settings.dnd,
-    watching: () => (brain.category === "terminal" || brain.category === "code") && voice.idleMs < 15_000,
   });
   invoke("set_typing", { on: settings.play.typing }).catch(() => {});
   await listen<Presence>("presence", (e) => brain.onPresence(e.payload));
@@ -368,6 +375,7 @@ async function boot() {
     if (action === "__throw") { buddy.world.launch(-900 * buddy.world.scale, -1400 * buddy.world.scale); buddy.play("airborne", undefined, { force: true }); return; }
     if (action === "__nudge") return brain.onNudgeRequest();
     if (action === "__climb") return (brain as any).climb();
+    if (action === "__screen") return brain.visitScreen();
     buddy.play(action, args, { force: true });
   });
   await onSettings((s) => {

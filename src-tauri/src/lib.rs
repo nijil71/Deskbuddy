@@ -1,3 +1,4 @@
+mod backup;
 mod cc;
 mod convert;
 mod dl;
@@ -273,7 +274,17 @@ fn set_typing(st: St, on: bool) {
 
 #[tauri::command]
 fn quit(app: AppHandle) {
-    app.exit(0);
+    quit_soon(&app);
+}
+
+/// Let the UI save its short-term memory ("before-quit"), then exit.
+fn quit_soon(app: &AppHandle) {
+    let _ = app.emit_to("main", "before-quit", ());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(600));
+        app.exit(0);
+    });
 }
 
 // ------------------------------------------------------------------ helpers
@@ -592,7 +603,7 @@ fn build_tray(app: &AppHandle, st: &Arc<Shared>) -> tauri::Result<()> {
         .on_menu_event(move |app, ev| {
             let id = ev.id().as_ref();
             match id {
-                "quit" => app.exit(0),
+                "quit" => quit_soon(app),
                 "hide" => {
                     let v = !st2.visible.load(Ordering::Relaxed);
                     apply_visibility(app, &st2, v);
@@ -632,6 +643,7 @@ fn build_tray(app: &AppHandle, st: &Arc<Shared>) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    backup::run(); // before the store plugin reads deskbud.json
     let shared = Arc::new(Shared {
         keep: Mutex::new(KeepCfg::default()),
         hit: Mutex::new(HitBox::default()),
