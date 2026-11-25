@@ -6,7 +6,6 @@ export default defineConfig({
   server: { port: 1420, strictPort: true, watch: { ignored: ["**/src-tauri/**"] } },
   build: {
     target: "es2022",
-    minify: "esbuild",
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
