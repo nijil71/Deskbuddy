@@ -1,6 +1,6 @@
 [package]
 name = "deskbud"
-version = "1.0.2"
+version = "1.0.3"
 description = "A living desktop buddy"
 edition = "2021"
 
