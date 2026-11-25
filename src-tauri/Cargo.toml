@@ -1,6 +1,6 @@
 [package]
 name = "deskbud"
-version = "1.0.3"
+version = "1.0.4"
 description = "A hand-drawn desktop buddy for Windows"
 authors = ["nijil71 and Deskbud contributors"]
 license = "MIT"

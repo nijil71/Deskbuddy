@@ -1,7 +1,7 @@
 {
   "name": "deskbud",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A hand-drawn desktop buddy for Windows that lives on your taskbar, keeps you Available, and reminds you to look after yourself.",
   "license": "MIT",
   "homepage": "https://github.com/nijil71/Deskbuddy#readme",

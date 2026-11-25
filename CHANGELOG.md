@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## 1.0.4 - 2026-11-25
+
+First public release.
+
 ### Added
 - Ready-made Windows installers published on [GitHub Releases](https://github.com/nijil71/Deskbuddy/releases).
 - The buddy tells you when a new release is out (about twice a day it asks GitHub; turn it off in Settings → App).
@@ -13,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - Default work hours are now Monday–Friday 09:00–18:00. Your saved hours are not touched.
+- Updated build tools (Vite 8, TypeScript 7) and dependencies.
 
 ## 1.0.3 - 2026-11-25
 
