@@ -1,0 +1,53 @@
+name: Bug report
+description: Something doesn't work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Please check the [open issues](https://github.com/nijil71/Deskbuddy/issues) first in case it's already known.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+      placeholder: When I drop a PNG on the buddy and press Convert…, nothing happens.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen again?
+      placeholder: |
+        1. Right-click the buddy → Settings
+        2. Turn on …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Deskbud version
+      description: Click the Deskbud tray icon. The "Check for updates (v…)" line shows your version.
+      placeholder: "1.0.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+    validations:
+      required: true
+  - type: input
+    id: screens
+    attributes:
+      label: Number of monitors and display scaling (if relevant)
+      placeholder: 2 monitors, 150% and 100%
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, screen recordings, or error messages help a lot. Please remove anything private first.

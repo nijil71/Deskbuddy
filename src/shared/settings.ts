@@ -47,14 +47,14 @@ export interface Settings {
   meetings: Meeting[];
   autostart: boolean;
   firstRun: boolean;
-  /** work hours were confirmed (stops the one-time 9–18 → 14–23 migration) */
-  shiftSet: boolean;
+  /** look for new releases on GitHub (one small request about twice a day) */
+  updates: { check: boolean };
 }
 
 export const DEFAULTS: Settings = {
   keep: {
     enabled: true, thresholdS: 210, workHoursOnly: true,
-    days: [false, true, true, true, true, true, false], startMin: 14 * 60, endMin: 23 * 60, pauseInCall: true,
+    days: [false, true, true, true, true, true, false], startMin: 9 * 60, endMin: 18 * 60, pauseInCall: true,
   },
   skin: "ink",
   accessory: "auto",
@@ -91,7 +91,7 @@ export const DEFAULTS: Settings = {
   meetings: [],
   autostart: true,
   firstRun: true,
-  shiftSet: false,
+  updates: { check: true },
 };
 
 let storeP: Promise<Store> | null = null;
@@ -110,13 +110,7 @@ function merge<T>(base: T, over: any): T {
 export async function loadSettings(): Promise<Settings> {
   const s = await store();
   const raw = await s.get<any>("settings");
-  const v = merge(DEFAULTS, raw);
-  // one-time: installs still on the old untouched 09:00–18:00 default move to your 14:00–23:00 shift
-  if (raw && !raw.shiftSet && v.keep.startMin === 9 * 60 && v.keep.endMin === 18 * 60) {
-    v.keep.startMin = 14 * 60; v.keep.endMin = 23 * 60;
-  }
-  v.shiftSet = true;
-  return v;
+  return merge(DEFAULTS, raw);
 }
 
 export async function saveSettings(v: Settings) {

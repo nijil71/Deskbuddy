@@ -36,7 +36,17 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "publisher": "Deskbud contributors",
+    "copyright": "Copyright (c) 2026 nijil71 and Deskbud contributors. MIT License.",
+    "homepage": "https://github.com/nijil71/Deskbuddy",
+    "license": "MIT",
+    "category": "Utility",
+    "shortDescription": "A hand-drawn desktop buddy for Windows",
+    "longDescription": "Deskbud is a small animated character that lives on your Windows taskbar. It keeps you Available while you step away, runs focus timers, reminds you to drink water and stretch, converts files, copies text from screenshots, and has a personality of its own.",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
-    "windows": { "webviewInstallMode": { "type": "skip" } }
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": { "installMode": "currentUser" }
+    }
   }
 }

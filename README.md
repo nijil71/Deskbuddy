@@ -1,86 +1,155 @@
+<div align="center">
+
+<img src="src-tauri/icons/128x128@2x.png" width="128" alt="Deskbud logo: an ink-drawn character with round glasses">
+
 # Deskbud
 
-A small desktop buddy for Windows, drawn in the same ink style as your avatar. It lives on your taskbar, keeps Teams green while you step away, reminds you to look after yourself, and has its own personality.
+**A hand-drawn little buddy who lives on your Windows taskbar.**
 
-Built with **Tauri 2**. A Rust core handles the Windows APIs, and an SVG character is animated part by part in WebView2.
+He keeps you showing as Available while you grab a coffee, reminds you to drink water and rest your eyes,<br>
+runs your focus timer, converts files you drop on him, and has a personality of his own.
 
-## Run
+[![Latest release](https://img.shields.io/github/v/release/nijil71/Deskbuddy?label=download&color=2ea44f)](https://github.com/nijil71/Deskbuddy/releases/latest)
+[![CI](https://github.com/nijil71/Deskbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/nijil71/Deskbuddy/actions/workflows/ci.yml)
+[![Platform: Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6)](#install)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+[**Download**](https://github.com/nijil71/Deskbuddy/releases/latest) · [Features](#what-he-does) · [Privacy](#privacy) · [FAQ](#faq) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+<!-- A short GIF of the buddy walking, waving and reacting goes here, e.g.:
+<p align="center"><img src="docs/demo.gif" width="600" alt="Deskbud walking along the taskbar and waving"></p>
+-->
+
+---
+
+## Install
+
+1. **Download** `Deskbud_x.y.z_x64-setup.exe` from the [latest release](https://github.com/nijil71/Deskbuddy/releases/latest).
+2. **Run it.** No admin rights needed. If Windows says *"Windows protected your PC"*, click **More info → Run anyway** ([why?](#windows-protected-your-pc)).
+3. **Say hi.** Your buddy drops onto the taskbar and waves. Right-click him for everything else.
+
+That's it. He starts with Windows from now on (you can turn that off in Settings).
+
+**Requirements:** Windows 10 or 11, 64-bit. Nothing else. The installer adds Microsoft WebView2 if your PC is missing it.
+
+**Updating:** when a new version is out, your buddy holds up a sign. Click **Download**, run the new installer, and you're done. Your settings and notes are kept.
+
+## Getting started
+
+| To… | Do this |
+|---|---|
+| Open the menu | **Right-click** the buddy |
+| Change settings, notes, reminders | Right-click → **Settings**, or click the tray icon |
+| Pet him | Rub the cursor back and forth over his head |
+| Move him | Drag him. Throw him if you like, he bounces |
+| Search apps, folders, the web | Press **Ctrl + Alt + Space** anywhere |
+| Convert a file | Drop it on him and press **Convert…** |
+| Copy text from the screen | Right-click → **Copy text**, then select an area |
+| Make him quiet | Right-click → **Shh for an hour**, or set Mode to **Quiet** in Settings |
+
+## What he does
+
+**Work helpers**
+
+- 🟢 **Stays Available.** When you've been idle for about 3.5 minutes during work hours, he nudges the mouse by 1 pixel and back so Teams (and similar apps) don't mark you Away. He stops during calls and when your PC is locked.
+- ⏱️ **Focus timer.** Pomodoro rounds with breaks. Reminders wait until the break.
+- 💧 **Self-care reminders.** Water, stretching, 20-20-20 eye breaks and posture, each on its own schedule and only while you're at the desk.
+- 📅 **Meeting nudges.** Quick-add "14:30 Standup" and he warns you 5 minutes and 1 minute before.
+- 🔁 **Convert files.** Images, audio, video and documents. The original is never overwritten.
+- 📋 **Copy text from anything.** Select an area of the screen and its text goes to your clipboard. Works offline.
+- 🎬 **Save videos.** Copy a YouTube, Vimeo, X, Instagram, TikTok or Reddit link and he offers to save the video or an MP3.
+- 📝 **Sticky notes, clipboard history and a quick launcher.**
+- 🤖 **Claude Code alerts.** Optional: he tells you when a long [Claude Code](https://claude.com/claude-code) task finishes or needs your permission.
+
+**Companion**
+
+- 🚶 Walks along the taskbar, climbs on top of your windows and rides along when you move them, and walks over to your other monitor.
+- 😴 Sleeps when you're away, greets you when you're back, ducks out of the way during fullscreen video and presentations.
+- 🌦️ Reacts to the weather, your CPU and battery, the time of day, and your birthday.
+- 🎨 Hobbies, moods and outfits. Blinks, breathes and watches your cursor.
+- 🪶 Light on your PC: he slows to 24 frames per second when idle, 10 while asleep, and stops completely when hidden.
+
+👉 **[See every feature in detail](docs/FEATURES.md)**
+
+### Optional extras
+
+Some features use free tools you can install with one command. The buddy tells you when one is needed and shows the command.
+
+| For | Install |
+|---|---|
+| Audio and video conversion | `winget install Gyan.FFmpeg` |
+| Document conversion (docx, xlsx, pptx → pdf…) | `winget install TheDocumentFoundation.LibreOffice` or `winget install JohnMacFarlane.Pandoc` |
+| Video downloads | `winget install yt-dlp.yt-dlp` |
+
+## Privacy
+
+Deskbud has no account, no analytics and no tracking. Everything stays on your PC except the few requests below, and none of them include anything about you.
+
+| What | When | Sent to | Turn it off |
+|---|---|---|---|
+| Weather | Only after you set a city | [Open-Meteo](https://open-meteo.com) (the city name or coordinates) | Leave the city empty |
+| Hacker News stories | Every 20–40 minutes | [Hacker News API](https://github.com/HackerNews/API) | Panel → **News** tab |
+| Update check | About twice a day | GitHub (asks for the latest release) | Settings → App → Check for updates |
+| Video downloads | Only when you click Video or MP3 | The video site, through yt-dlp | Don't click it 🙂 |
+
+**Stored only on your PC**, in `%APPDATA%\com.deskbud.app\`: settings, notes, meetings, mood, and the optional activity diary (app and site names plus time spent, never window contents). Backups of the last 7 days sit next to it in `backups\`.
+
+**Never stored:** clipboard history lives in memory and is gone when Deskbud quits. "Type along" counts keystrokes but never records which keys.
+
+## FAQ
+
+### "Windows protected your PC"
+
+Windows shows this for apps that aren't signed with a paid code-signing certificate, and Deskbud isn't signed yet. Click **More info → Run anyway**. If you'd rather check first, every release is built in the open by [GitHub Actions](https://github.com/nijil71/Deskbuddy/actions/workflows/release.yml) from this source code, and each release lists SHA-256 checksums of its files.
+
+### Is the keep-alive feature allowed at my workplace?
+
+It only simulates a 1-pixel mouse move and a press of the unused F15 key; it doesn't touch Teams. Whether it's appropriate is up to you and your workplace's policies. You can turn it off, or limit it to your work hours, in Settings → **Keep Teams green**.
+
+### How do I change my work hours?
+
+Settings → **My work hours**. The default is Monday–Friday, 09:00–18:00. Your buddy's whole day follows these: morning coffee, meal break, wrap-up time, and when keep-alive is active. Night shifts that cross midnight work too.
+
+### He's too chatty / I'm in a meeting
+
+Right-click → **Shh for an hour** silences him. For good, set **Mode** to **Work** (calm) or **Quiet** (no bubbles or reminders at all) in Settings. He also goes quiet by himself when your microphone is in use.
+
+### How do I uninstall?
+
+1. If you turned on Claude Code alerts, turn them off first in Settings so the hooks are removed from `~/.claude/settings.json`.
+2. Windows Settings → **Apps** → **Deskbud** → **Uninstall**.
+3. To also delete your notes and settings, delete the folder `%APPDATA%\com.deskbud.app`.
+
+### Does it work on macOS or Linux?
+
+Not yet. Deskbud relies on Windows features (taskbar position, idle time, built-in OCR). Contributions to port it are welcome.
+
+### Something's wrong
+
+Please [open a bug report](https://github.com/nijil71/Deskbuddy/issues/new?template=bug_report.yml). Your version number is shown in the tray menu, next to "Check for updates".
+
+## Build from source
+
+You need Windows 10/11, [Node.js](https://nodejs.org) 22.6+, [Rust](https://rustup.rs) and the Visual Studio C++ build tools. [CONTRIBUTING.md](CONTRIBUTING.md#set-up-your-computer) has one-line install commands for each.
 
 ```powershell
+git clone https://github.com/nijil71/Deskbuddy.git
+cd Deskbuddy
 npm install
-npm run tauri dev      # development
-npm run tauri build    # release build + installers in src-tauri/target/release/bundle/
+npm run tauri dev      # run with live reload
+npm run tauri build    # make an installer in src-tauri/target/release/bundle/
 ```
 
-## Updating your buddy
+## Contributing
 
-```powershell
-npm run release            # bump the patch version (1.0.0 → 1.0.1) and build the installer
-npm run release -- minor   # or minor / major / an exact version like 2.0.0
-```
+Bug reports, ideas, new animations and code are all welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). It covers setup, how the code is organised, and how to open a pull request. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security problem, see [SECURITY.md](SECURITY.md).
 
-The installer is copied into `releases/` (the newest 3 are kept). Within about 2 minutes the running buddy finds it there. It holds up a sign saying **Update available** with an **Update** button. Clicking it installs the new version and relaunches. To check straight away, use tray → **Check for updates**. "Later" snoozes that version for 4 hours. Everything stays local: no server and no signing keys.
+## Built with
 
-Rust's build cache (several GB) is kept outside the project, in `%LOCALAPPDATA%\cargo-target\deskbud`, so OneDrive doesn't sync it. That's set in the machine-local `src-tauri/.cargo/config.toml`, which isn't committed.
+[Tauri 2](https://v2.tauri.app) and Rust for the Windows side, TypeScript and SVG for the buddy (no images: every part of him is drawn and animated in code), [Open-Meteo](https://open-meteo.com) for weather, and the Windows OCR engine for reading text.
 
-## What it does
+## License
 
-| Area | Feature | Animation |
-|---|---|---|
-| **Teams keep-alive** | After about 3.5 min idle (work hours only, Mon–Fri 9–18 by default), it moves the mouse 1 px and back and taps the invisible **F15** key. That resets the Windows idle timer Teams uses to decide "Away". It pauses while your mic is in use (you're in a call) and when the PC is locked. | Notices, runs to the cursor, shoves it, dusts off its hands: "Still green ✓" |
-| **Presence** | Sleeps once you've been away 5 min. Greets you when you come back. | Zzz, glasses slide down, wakes with a stretch, waves or celebrates |
-| **Calls** | Detects calls through microphone use. | "Shh…", then sits quietly |
-| **Fullscreen** | Hides during fullscreen video, games and presentations. | Ducks down, pops back up |
-| **Focus timer** | Pomodoro with configurable rounds; reminders wait until the break. | Laptop and headphones, typing, ring timer above its head |
-| **Reminders** | Water, stretch, eyes (20-20-20) and posture. Each has its own interval, with Done/Snooze, and they only show while you're at the desk. | Drinks from a bottle, demonstrates stretches, binoculars with a countdown, slouch-then-sit-tall |
-| **Meetings** | Quick-add "14:30 Standup". Warns you at T-5 and T-1 and offers to open Teams. | Holds up a sign |
-| **System** | CPU > 88%, RAM > 92%, battery ≤ 20%, charger plugged in. | Fans itself and sweats, carries a heavy RAM box, droops holding a plug, happy bounce |
-| **Clipboard** | Keeps your last 30 text copies, in memory only. Search, re-copy, delete. | Catches a flying paper |
-| **Launcher** | **Ctrl+Alt+Space** anywhere opens fuzzy search over pinned apps, folders, URLs and `shell:`/`ms-settings:` targets, plus web search. | — |
-| **Convert files** | Drop a file on the buddy and press **Convert…**. It saves a copy next to the original and never overwrites. Images (jpg, png, webp, bmp, gif, tiff, ico) are converted built-in. Audio and video (mp4, mkv, webm, mov, avi, gif, mp3, wav, flac, m4a, ogg, opus) use [FFmpeg](https://ffmpeg.org) if installed. Documents use pandoc or LibreOffice (docx/xlsx/pptx → pdf, etc.) if installed. If the needed tool is missing, it offers the `winget` install command. Dropping several files of one type converts them all. | Waves a magic wand, then confetti |
-| **Claude Code** | Settings → Claude Code adds three hooks to `~/.claude/settings.json` (a backup is kept). When Claude finishes a task that took more than about 25 s, or needs your permission, the buddy tells you. It stays quiet if you're already in your terminal or editor. Only the project name and Claude's message are passed along, never your prompts. | Confetti when it's done, holds up a "Claude!" sign when you're needed |
-| **Copy text (OCR)** | Right-click → **Copy text** opens the snipping overlay. Snip anything and its text goes to your clipboard. The screenshot file the Snipping Tool auto-saves for that snip is deleted, since you only wanted the text. Dropped images get a **Copy text** button too. It uses the OCR engine built into Windows, so it works offline with nothing to install. | Reads the paper |
-| **Video downloads** | Copy (or drop) a YouTube, Vimeo, X, Instagram, TikTok, Reddit (and more) link and the buddy offers **Video** (MP4) or **MP3**. Pressing **Not now** twice stops the offer, and right-click → **Download copied link** still works. It saves to Downloads with live progress. Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) if installed (`winget install yt-dlp.yt-dlp`). | Magic wand, then confetti |
-| **Two screens** | With more than one monitor, the buddy walks across to the other screen, hopping up or dropping down when the floors are at different heights. If the screens aren't side by side, he ducks out of one and pops up on the other. He follows you when you've worked on the other screen for about 90 s (at most every 10 min, not in Quiet mode or during focus), sometimes wanders over on his own in Chill mode, and goes on request from right-click → **Go to other screen**. | Walks over, jumps up or drops down at the edge, looks around |
-| **Memory** | Long-term: notes, mood, days together, activity and settings live in `deskbud.json`, which is backed up daily (the last 7 days are kept in `backups\`) and restored automatically if it's ever missing or corrupt. Short-term: what you're doing right now, a running focus timer and today's work tracking are saved every 30 s and before quitting or updating, then restored if you restart within 30 minutes. | — |
-| **Notes** | Colored sticky notes that save automatically. | Holds the note up |
-| **Screenshot** | Opens the Windows snipping overlay. | Camera pose and flash |
-| **Weather** | Open-Meteo (no key). Set your city in Settings. | Umbrella and rain, snowflakes, sunglasses |
-| **Life** | Walks the taskbar, jumps onto the top edge of the focused window and rides along or falls off when it moves or closes, peeks from screen edges. Hobbies: reading, juggling, music, doodling, yo-yo, magic, coffee, thinking. Time of day: morning coffee, lunch sign, evening yawn, late-night nightcap. | — |
-| **You** | Drag it, with dangling legs and swinging hair. Throw it: it follows a physics arc, bounces, and gets dizzy on hard landings. Click it to poke, double-click to wave, rub its head to pet it (blush and hearts), right-click for a menu. | — |
-
-Every animation is built on always-on layers: breathing, random (double) blinks, eyes and a slight 3/4 head turn that follow your cursor, spring-driven hair tufts and ears, and a glint on the glasses. The outline "boils" a little so it looks hand-drawn.
-
-**Tray menu:** keep-alive toggle, focus, reminders, notes, clipboard, launcher, hide/show, do-not-disturb, settings, and the **Animation lab**, which plays any animation on demand.
-
-## Staying light
-
-- The frame rate adapts: 60 fps for movement, 40 for effects, 24 idle, 10 while asleep, and 0 when hidden or locked.
-- Only `transform`/`d` attributes change each frame. There are no SVG filters and no images.
-- Background work in Rust is cheap polling: idle every 5 s, cursor at 25 Hz (2 Hz when hidden), system stats every 5 s, clipboard sequence number every 0.7 s.
-- The window is click-through everywhere except the character, and the buddy never steals keyboard focus.
-- The panel window is created on demand and destroyed when closed.
-- Release builds use LTO, `opt-level="s"`, and strip symbols.
-
-## Layout
-
-```
-src-tauri/src/win.rs   Win32: idle, SendInput, lock, fullscreen, mic-in-use, monitors, windows, CPU/RAM/battery, clipboard, shell
-src-tauri/src/cc.rs       Claude Code hooks → buddy (`deskbud.exe --cc <event>`)
-src-tauri/src/ocr.rs      text from images (Windows.Media.Ocr)
-src-tauri/src/dl.rs       video/audio downloads (yt-dlp)
-src-tauri/src/update.rs   local self-update (finds newer installers from `npm run release`)
-src-tauri/src/convert.rs  file conversion (image crate + FFmpeg / pandoc / LibreOffice)
-src-tauri/src/lib.rs   state, workers (presence/keep-alive, cursor+click-through, sysmon, clipboard), tray, panel, hotkey
-src/buddy/rig.ts       the SVG puppet (head, hair tufts, glasses, eyes, mouths, rubber-hose limbs, props)
-src/buddy/buddy.ts     frame loop, action blending, alive layers
-src/buddy/world.ts     desktop physics: taskbar floor, window tops, gravity, window movement
-src/buddy/brain.ts     needs-based idle picker + reactions + reminders/meetings/time-of-day
-src/buddy/anims/*.ts   all animations
-src/panel/             the panel window
-```
-
-## Notes
-
-- Keep-alive uses only real input events (1 px mouse move and back, F15 key). It doesn't touch Teams itself, so it works with any presence system based on idle time.
-- Settings are stored at `%APPDATA%\com.deskbud.app\deskbud.json`.
+[MIT](LICENSE). Use it, change it, share it.

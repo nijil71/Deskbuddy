@@ -87,3 +87,15 @@ test("screens: feet just past the edge belong to the screen above them (floor st
   assert.ok(sameMon(monitorAt([A, B], 1915, 1075), A));
   assert.ok(sameMon(monitorAt([A, B], 2500, 400), B));
 });
+
+test("update check: version comparison", async () => {
+  const { isNewer, parseVersion } = await import("../src/shared/version.ts");
+  assert.deepEqual(parseVersion("v1.2.3"), [1, 2, 3]);
+  assert.deepEqual(parseVersion("2.0"), [2, 0, 0]);
+  assert.equal(parseVersion("nightly"), null);
+  assert.ok(isNewer("v1.0.10", "1.0.9"));
+  assert.ok(isNewer("2.0.0", "1.99.99"));
+  assert.ok(!isNewer("1.0.3", "1.0.3"));
+  assert.ok(!isNewer("1.0.2", "1.0.3"));
+  assert.ok(!isNewer("garbage", "1.0.0"));
+});

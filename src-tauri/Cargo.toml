@@ -1,8 +1,13 @@
 [package]
 name = "deskbud"
 version = "1.0.3"
-description = "A living desktop buddy"
+description = "A hand-drawn desktop buddy for Windows"
+authors = ["nijil71 and Deskbud contributors"]
+license = "MIT"
+repository = "https://github.com/nijil71/Deskbuddy"
+homepage = "https://github.com/nijil71/Deskbuddy"
 edition = "2021"
+publish = false
 
 [lib]
 name = "deskbud_lib"

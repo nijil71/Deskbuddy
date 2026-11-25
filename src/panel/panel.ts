@@ -579,6 +579,7 @@ async function settings() {
     <section class="card">
       <h3>${icon("monitor")} App</h3>
       <div class="setting"><span class="grow">Start with Windows</span><label class="switch"><input type="checkbox" id="as" ${auto ? "checked" : ""}><i></i></label></div>
+      <div class="setting"><span class="grow">Check for updates<small>About twice a day, asks GitHub whether a newer version exists. Nothing is downloaded until you click Download.</small></span><label class="switch"><input type="checkbox" id="upd" ${S.updates.check ? "checked" : ""}><i></i></label></div>
       <div class="row gap"><button class="btn" id="summon">Bring buddy here</button><button class="btn" id="openlab">${icon("film")} Animation lab</button><span class="grow"></span><button class="btn danger" id="quit">Quit Deskbud</button></div>
     </section>`;
 
@@ -633,6 +634,7 @@ async function settings() {
     try { on ? await autoOn() : await autoOff(); S.autostart = on; save(); toast(on ? "Starts with Windows" : "Won't start with Windows"); }
     catch { toast("Couldn't change startup setting"); }
   };
+  chk("#upd", (v) => (S.updates.check = v));
   $("#summon").onclick = () => emit("tray", "summon");
   $("#quit").onclick = () => invoke("quit");
 }

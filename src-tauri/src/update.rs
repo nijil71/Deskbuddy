@@ -8,6 +8,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 const BUNDLE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "\\..\\releases");
+// Builds made for distribution (the GitHub release workflow sets DESKBUD_RELEASE_BUILD) skip local
+// updates entirely: on a user's PC the baked-in folder is meaningless, and updates come from GitHub.
+const DISTRIBUTED: bool = option_env!("DESKBUD_RELEASE_BUILD").is_some();
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +36,9 @@ fn installer_version(name: &str) -> Option<&str> {
 }
 
 pub fn find(current: &str) -> Option<LocalUpdate> {
+    if DISTRIBUTED {
+        return None;
+    }
     find_in(Path::new(BUNDLE_DIR), current)
 }
 
@@ -61,6 +67,9 @@ fn find_in(dir: &Path, current: &str) -> Option<LocalUpdate> {
 /// Run the installer the way tauri-plugin-updater does (passive UI, update mode, relaunch after).
 /// The caller exits the app right after, so the installer can replace the exe.
 pub fn launch_installer(path: &str) -> Result<(), String> {
+    if DISTRIBUTED {
+        return Err("Local updates only work in builds made with `npm run release`".into());
+    }
     let p = Path::new(path);
     if !p.is_file() || installer_version(&p.file_name().unwrap_or_default().to_string_lossy()).is_none() {
         return Err("That installer is gone — rebuild and try again".into());

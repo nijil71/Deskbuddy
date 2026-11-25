@@ -1,0 +1,13 @@
+# Normalize line endings in the repository (files are checked out with your platform's default).
+* text=auto
+
+# Lockfiles: don't show in diffs by default, and treat as generated.
+package-lock.json linguist-generated=true -diff
+src-tauri/Cargo.lock linguist-generated=true -diff
+
+# Binary assets
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+*.gif binary
